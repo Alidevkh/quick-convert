@@ -73,7 +73,7 @@ func Run(ctx context.Context, actionID, input string, d Deps) (code int) {
 
 	fail := func(err error) int {
 		runErr = err
-		d.Notify("Couldn't convert "+name, reason(err))
+		d.Notify("Couldn't convert "+name, reason(err, ext))
 		return ExitFailed
 	}
 
@@ -86,8 +86,12 @@ func Run(ctx context.Context, actionID, input string, d Deps) (code int) {
 	if !actions.Supports(actionID, ext) {
 		return fail(&UserError{Msg: fmt.Sprintf("%s isn't available for %s files", action.Label, ext)})
 	}
-	if info, err := os.Stat(input); err != nil || !info.Mode().IsRegular() {
+	info, err := os.Stat(input)
+	if err != nil || !info.Mode().IsRegular() {
 		return fail(&UserError{Msg: "File not found"})
+	}
+	if info.Size() == 0 {
+		return fail(&UserError{Msg: "This file is empty"})
 	}
 
 	// Tell the user we started, but only if the job takes a while.
@@ -122,11 +126,11 @@ func Run(ctx context.Context, actionID, input string, d Deps) (code int) {
 	startTimer.Stop()
 	outputs = result.Outputs
 
-	var info *Info
+	var notice *Info
 	switch {
-	case errors.As(err, &info):
+	case errors.As(err, &notice):
 		runErr = err
-		d.Notify("QuickConvert", info.Msg)
+		d.Notify("QuickConvert", notice.Msg)
 		return ExitOK
 	case err != nil:
 		return fail(err)
@@ -154,14 +158,16 @@ func doneTitle(r Result) string {
 }
 
 // reason turns an error into the short text shown in the notification.
-func reason(err error) string {
+// Engine messages are technical, so the user sees a plain sentence instead;
+// the engine's own message still goes into the log file.
+func reason(err error, ext string) string {
 	var userErr *UserError
 	var engineErr *engines.EngineError
 	switch {
 	case errors.As(err, &userErr):
 		return userErr.Msg
 	case errors.As(err, &engineErr):
-		return engineErr.Tail
+		return fmt.Sprintf("This file looks damaged or isn't a real %s file", strings.ToUpper(strings.TrimPrefix(ext, ".")))
 	default:
 		return err.Error() // includes MissingError and ErrNotWritable
 	}

@@ -1,5 +1,7 @@
 package platform
 
+// Limits how many heavy jobs run at once (Windows).
+
 import (
 	"syscall"
 	"unsafe"

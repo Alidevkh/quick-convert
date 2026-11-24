@@ -1,5 +1,13 @@
 package pdfmd
 
+// This file decides what each line of a PDF is and writes Markdown:
+//   - page headers, footers and page numbers are removed;
+//   - bigger text becomes # / ## / ### headings;
+//   - lines starting with • or 1. become list items;
+//   - short pieces of text lined up in columns become a table;
+//   - everything else is joined into paragraphs, keeping **bold** and *italic*.
+// Each step has its own section below, in that order.
+
 import (
 	"errors"
 	"math"

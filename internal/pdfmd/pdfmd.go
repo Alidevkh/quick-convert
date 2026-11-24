@@ -1,5 +1,8 @@
 package pdfmd
 
+// This file is the converter itself: run mutool, read its output,
+// build the Markdown and save "<name>.md" next to the PDF.
+
 import (
 	"context"
 	"errors"
@@ -7,6 +10,7 @@ import (
 	"path/filepath"
 
 	"quickconvert/internal/app"
+	"quickconvert/internal/pdf"
 )
 
 // Convert saves the PDF's text as Markdown: "report.pdf" → "report.md".
@@ -18,7 +22,7 @@ func Convert(ctx context.Context, j app.Job) (app.Result, error) {
 		"-o", xmlFile,
 		j.Work.In)
 	if err != nil {
-		return app.Result{}, err
+		return app.Result{}, pdf.Friendly(err)
 	}
 
 	f, err := os.Open(filepath.Join(j.Work.Dir, xmlFile))

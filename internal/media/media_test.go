@@ -190,3 +190,28 @@ func TestUnicodeFolderEndToEnd(t *testing.T) {
 		t.Errorf("output %v", r.Outputs)
 	}
 }
+
+// iPhones can add extra audio tracks (e.g. spatial audio) in formats MP4
+// may not accept, so only the main audio track is kept.
+func TestMP4ArgsKeepsOnlyFirstAudioTrack(t *testing.T) {
+	args := MP4Args("in.mov", "out.mp4", Info{VideoCodec: "hevc", AudioCodec: "aac", HasVideo: true, HasAudio: true})
+	if !contains(args, "-map 0:a:0?") || contains(args, "-map 0:a? ") {
+		t.Errorf("args = %v", args)
+	}
+}
+
+// The rotation is applied to the pixels, so the result must not also carry
+// an orientation tag (newer ffmpeg could otherwise make viewers rotate twice).
+func TestImageRotatedHasNoOrientationTag(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe", "exiftool")
+	dir := t.TempDir()
+	in := testutil.MakeImage(t, dir, "phone.jpg", 40, 20, false)
+	testutil.SetOrientation(t, in, 6)
+	r, err := convert(t, Image, in, "jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(testutil.Run(t, "exiftool", "-s3", "-Orientation", r.Outputs[0])); got != "" {
+		t.Errorf("output still has Orientation %q", got)
+	}
+}

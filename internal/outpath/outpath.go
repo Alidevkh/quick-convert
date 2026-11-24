@@ -3,7 +3,7 @@
 //
 // How one conversion uses it:
 //
-//  1. NewWork creates a hidden temporary folder next to the original file,
+//  1. NewWork creates a temporary folder next to the original file,
 //     e.g. "C:\Videos\.qc-1a2b3c4d.part".
 //  2. LinkInput puts the original inside that folder under a short, plain
 //     name ("in.mov"). Engines only ever see such simple names, which avoids
@@ -56,6 +56,11 @@ type Work struct {
 	// link creates newname as a hard link to oldname and fails if newname
 	// already exists. It is os.Link normally; tests replace it.
 	link func(oldname, newname string) error
+
+	// move renames oldname to newname and fails if newname already exists.
+	// Used when the drive has no hard links (FAT32/exFAT USB sticks, network
+	// shares). On Windows it is MoveFile; elsewhere it reports "unsupported".
+	move func(oldname, newname string) error
 }
 
 // NewWork creates the temporary folder inside parent.
@@ -68,18 +73,23 @@ func NewWork(parent string) (*Work, error) {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return nil, ErrNotWritable
 	}
-	return &Work{Dir: dir, Parent: parent, link: os.Link}, nil
+	return &Work{Dir: dir, Parent: parent, link: os.Link, move: moveNoReplace}, nil
 }
 
 // LinkInput makes the original file available inside the work folder as
 // "in" + its extension (lower case). A hard link is instant even for huge
 // videos; if the drive does not support hard links we copy instead.
 // The original itself is never touched.
+//
+// A read-only original is always copied: on Windows, deleting a hard link
+// to a read-only file would remove the read-only flag from the original.
 func (w *Work) LinkInput(src string) error {
 	w.In = "in" + strings.ToLower(filepath.Ext(src))
 	dst := filepath.Join(w.Dir, w.In)
-	if err := os.Link(src, dst); err == nil {
-		return nil
+	if info, err := os.Stat(src); err == nil && info.Mode().Perm()&0o200 != 0 {
+		if err := os.Link(src, dst); err == nil {
+			return nil
+		}
 	}
 	return copyNew(src, dst)
 }
@@ -142,12 +152,18 @@ func (w *Work) Cleanup() {
 }
 
 // claim creates dst with the content of src, failing with an "exists"
-// error if dst is already there. It tries a hard link first (instant, and
-// atomic: two jobs can never get the same name). If the drive does not
-// support links (FAT32/exFAT USB sticks, some network shares), it falls
-// back to creating dst exclusively and copying the bytes.
+// error if dst is already there. All three ways are safe when two jobs
+// want the same name at the same moment:
+//  1. a hard link (instant);
+//  2. if the drive has no hard links, a move that refuses to replace
+//     (instant, and never leaves a half-written file);
+//  3. as a last resort, creating dst exclusively and copying the bytes.
 func (w *Work) claim(src, dst string) error {
 	err := w.link(src, dst)
+	if err == nil || os.IsExist(err) {
+		return err
+	}
+	err = w.move(src, dst)
 	if err == nil || os.IsExist(err) {
 		return err
 	}

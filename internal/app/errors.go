@@ -1,5 +1,7 @@
 package app
 
+// The two kinds of messages a converter can return instead of a result.
+
 // UserError is a failure with a message meant for the user, shown in the
 // notification as the reason, e.g. "This video has no audio".
 type UserError struct{ Msg string }

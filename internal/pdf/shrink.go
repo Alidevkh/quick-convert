@@ -1,5 +1,7 @@
 package pdf
 
+// This file makes a smaller copy of a PDF with Ghostscript.
+
 import (
 	"context"
 	"fmt"
@@ -29,7 +31,7 @@ func Shrink(ctx context.Context, j app.Job) (app.Result, error) {
 		"-sOutputFile="+out,
 		j.Work.In)
 	if err != nil {
-		return app.Result{}, friendly(err)
+		return app.Result{}, Friendly(err)
 	}
 
 	before, err := fileSize(filepath.Join(j.Work.Dir, j.Work.In))

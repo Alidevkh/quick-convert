@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"quickconvert/internal/actions"
+	"quickconvert/internal/engines"
 )
 
 // recorder remembers every notification shown.
@@ -211,5 +212,32 @@ func TestLogLine(t *testing.T) {
 	if strings.Count(line, "\n") != 1 || !strings.Contains(line, "code-py") ||
 		!strings.Contains(line, input) || !strings.Contains(line, "x.py") {
 		t.Errorf("log = %q", line)
+	}
+}
+
+func TestRunEngineFailureIsFriendly(t *testing.T) {
+	broken := func(ctx context.Context, j Job) (Result, error) {
+		return Result{}, &engines.EngineError{Name: "ffmpeg", Tail: "Invalid data found when processing input"}
+	}
+	input, rec, log, d := setup(t, "clip.mov", broken)
+	Run(context.Background(), "mp4", input, d)
+	if got := rec.last(); got[1] != "This file looks damaged or isn't a real MOV file" {
+		t.Errorf("notify = %v", got)
+	}
+	if !strings.Contains(log.String(), "Invalid data found") {
+		t.Error("the engine's own message should still be in the log")
+	}
+}
+
+func TestRunEmptyFile(t *testing.T) {
+	called := false
+	h := func(ctx context.Context, j Job) (Result, error) { called = true; return Result{}, nil }
+	input, rec, _, d := setup(t, "doc.pdf", h)
+	os.WriteFile(input, nil, 0o644)
+	if code := Run(context.Background(), "shrink", input, d); code != 1 {
+		t.Fatalf("exit %d", code)
+	}
+	if got := rec.last(); got[1] != "This file is empty" || called {
+		t.Errorf("notify = %v, handler called = %v", got, called)
 	}
 }

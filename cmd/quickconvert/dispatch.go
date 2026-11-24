@@ -1,5 +1,7 @@
 package main
 
+// This file connects each menu action to the package that does the work.
+
 import (
 	"strings"
 

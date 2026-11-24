@@ -105,3 +105,32 @@ func TestUninstallRemovesFolderLast(t *testing.T) {
 		t.Errorf("last line = %q", last)
 	}
 }
+
+// Explorer hides an entry when more than 15 files are selected unless the
+// entry itself (not only its submenu items) allows many files.
+func TestParentAllowsManyFiles(t *testing.T) {
+	want := `reg add "` + root + `.mov\shell\QuickConvert" /v MultiSelectModel /d "Player" /f >nul`
+	if !strings.Contains(InstallScript(), want) {
+		t.Errorf("missing:\n%s", want)
+	}
+}
+
+// Running install.cmd from inside the zip viewer would register a program
+// that does not exist; the script must stop and say so.
+func TestInstallChecksProgramIsThere(t *testing.T) {
+	s := InstallScript()
+	check := strings.Index(s, `if not exist "%~dp0quickconvert.exe"`)
+	if check < 0 || check > strings.Index(s, "reg add") {
+		t.Error("install.cmd must check for quickconvert.exe before adding entries")
+	}
+}
+
+// rmdir cannot delete the folder the script is running in, so the
+// uninstaller must leave it first.
+func TestUninstallLeavesFolderBeforeDeleting(t *testing.T) {
+	s := UninstallScript()
+	cd := strings.Index(s, `cd /d "%TEMP%"`)
+	if cd < 0 || cd > strings.Index(s, "rmdir") {
+		t.Error("uninstall.cmd must leave its own folder (cd to TEMP) before rmdir")
+	}
+}

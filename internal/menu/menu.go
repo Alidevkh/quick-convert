@@ -32,6 +32,9 @@ func InstallScript() string {
 	s.add("setlocal")
 	s.add(`set "DEST=%LOCALAPPDATA%\QuickConvert"`)
 	s.add("")
+	s.add("rem 0. Stop if run from inside the zip (Windows shows the zip like a folder).")
+	s.add(`if not exist "%~dp0quickconvert.exe" goto :notunzipped`)
+	s.add("")
 	s.add("rem 1. Remove menu entries from any older version.")
 	addDeletes(&s)
 	s.add("")
@@ -46,6 +49,12 @@ func InstallScript() string {
 	s.add("echo QuickConvert installed.")
 	s.add("echo Right-click a file ^> Show more options ^> Convert to.")
 	s.add("pause")
+	s.add("exit /b 0")
+	s.add("")
+	s.add(":notunzipped")
+	s.add("echo Please unzip QuickConvert first, then run install.cmd from the unzipped folder.")
+	s.add("pause")
+	s.add("exit /b 1")
 	return s.String()
 }
 
@@ -56,6 +65,7 @@ func UninstallScript() string {
 	s.add("rem Removes QuickConvert's menu entries and its folder.")
 	addDeletes(&s)
 	s.add("echo QuickConvert menu entries removed.")
+	s.add(`cd /d "%TEMP%"`) // leave the folder, or Windows won't let us delete it
 	// Deleting the folder this script may be running from: "(goto)" ends
 	// the script first, so cmd doesn't complain that the file is gone.
 	s.add(`(goto) 2>nul & rmdir /S /Q "%LOCALAPPDATA%\QuickConvert"`)
@@ -67,7 +77,8 @@ func addEntries(s *script, ext string) {
 	if items := actions.Submenu(ext); len(items) > 0 {
 		key := classesRoot + ext + `\shell\QuickConvert`
 		s.regValue(key, "MUIVerb", "Convert to")
-		s.regValue(key, "SubCommands", "") // empty = the submenu is the "shell" key below
+		s.regValue(key, "SubCommands", "")            // empty = the submenu is the "shell" key below
+		s.regValue(key, "MultiSelectModel", "Player") // still shown when more than 15 files are selected
 		for n, item := range items {
 			verb := fmt.Sprintf(`%s\shell\%02d%s`, key, n+1, item.ActionID) // 01, 02... keeps menu order
 			s.regVerb(verb, item)

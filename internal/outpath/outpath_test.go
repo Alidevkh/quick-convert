@@ -225,3 +225,49 @@ func TestCleanupRemovesDir(t *testing.T) {
 		t.Errorf("left behind: %v", left)
 	}
 }
+
+// On Windows, deleting a hard link to a read-only file clears the
+// read-only flag on the original. So a read-only original must be copied,
+// never linked.
+func TestLinkInputCopiesReadOnlyOriginal(t *testing.T) {
+	parent := t.TempDir()
+	src := filepath.Join(parent, "locked.pdf")
+	os.WriteFile(src, []byte("pdf"), 0o444)
+	w, _ := NewWork(parent)
+	defer w.Cleanup()
+	if err := w.LinkInput(src); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := os.Stat(src)
+	b, _ := os.Stat(filepath.Join(w.Dir, w.In))
+	if os.SameFile(a, b) {
+		t.Error("read-only original was hard-linked")
+	}
+}
+
+func TestCommitUsesMoveWhenLinkUnsupported(t *testing.T) {
+	parent := t.TempDir()
+	os.WriteFile(filepath.Join(parent, "a.mp4"), []byte("old"), 0o644)
+	w, _ := NewWork(parent)
+	defer w.Cleanup()
+	w.link = func(string, string) error { return errors.New("not supported") }
+	moved := 0
+	w.move = func(oldname, newname string) error {
+		if _, err := os.Lstat(newname); err == nil {
+			return os.ErrExist
+		}
+		moved++
+		return os.Rename(oldname, newname)
+	}
+	writeTemp(t, w, "out.mp4", "new")
+	got, err := w.Commit("out.mp4", "a", ".mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(got) != "a (1).mp4" || mustRead(t, got) != "new" || moved != 1 {
+		t.Errorf("got %q moved=%d", got, moved)
+	}
+	if mustRead(t, filepath.Join(parent, "a.mp4")) != "old" {
+		t.Error("existing file overwritten")
+	}
+}

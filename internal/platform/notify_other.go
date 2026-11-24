@@ -2,6 +2,8 @@
 
 package platform
 
+// Stand-in for notifications when running outside Windows.
+
 import (
 	"fmt"
 	"os"

@@ -1,5 +1,7 @@
 package platform
 
+// Windows notifications (the pop-ups in the corner of the screen).
+
 import (
 	"os"
 	"os/exec"

@@ -28,7 +28,7 @@ func Render(ctx context.Context, j app.Job) (app.Result, error) {
 		"-o", "page-%d.png", // one file per page: page-1.png, page-2.png...
 		j.Work.In)
 	if err != nil {
-		return app.Result{}, friendly(err)
+		return app.Result{}, Friendly(err)
 	}
 
 	pages, err := pageFiles(j.Work.Dir, ".png")
@@ -96,8 +96,9 @@ func pageFiles(dir, ext string) ([]string, error) {
 	return names, nil
 }
 
-// friendly replaces a known engine failure with a clear message.
-func friendly(err error) error {
+// Friendly replaces a known engine failure (a password-protected PDF)
+// with a clear message. Other errors are returned unchanged.
+func Friendly(err error) error {
 	var engineErr *engines.EngineError
 	if errors.As(err, &engineErr) && strings.Contains(strings.ToLower(engineErr.Stderr), "password") {
 		return &app.UserError{Msg: "This PDF is password-protected"}

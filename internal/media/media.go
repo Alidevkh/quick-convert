@@ -76,7 +76,7 @@ func start(in string) []string {
 func MP4Args(in, out string, i Info) []string {
 	args := append(start(in),
 		"-map", "0:v:0", // take the first video stream...
-		"-map", "0:a?", // ...and the audio streams, if any (drops subtitles/data tracks)
+		"-map", "0:a:0?", // ...and the main audio track, if any (drops extra tracks, subtitles, data)
 		"-map_metadata", "0", // keep date/title information
 	)
 	videoOK := i.VideoCodec == "h264" || i.VideoCodec == "hevc"

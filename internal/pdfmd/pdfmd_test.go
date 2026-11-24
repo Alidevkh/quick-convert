@@ -52,3 +52,14 @@ func TestConvertScanned(t *testing.T) {
 		t.Error("scan.md was created")
 	}
 }
+
+func TestConvertEncrypted(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakeEncryptedPDF(t, dir, "secret.pdf")
+	_, err := testutil.RunHandler(t, Convert, in, "md")
+	var ue *app.UserError
+	if !errors.As(err, &ue) || ue.Msg != "This PDF is password-protected" {
+		t.Fatalf("err = %v", err)
+	}
+}
