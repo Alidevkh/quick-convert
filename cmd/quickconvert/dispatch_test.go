@@ -6,6 +6,7 @@ import (
 
 	"quickconvert/internal/app"
 	"quickconvert/internal/media"
+	"quickconvert/internal/pdf"
 
 	"quickconvert/internal/actions"
 )
@@ -37,5 +38,19 @@ func TestMp3FromVideoVsAudio(t *testing.T) {
 	}
 	if !same(handlerFor(mp3, ".wav"), media.Audio) {
 		t.Error("mp3 from audio should use media.Audio")
+	}
+}
+
+func TestHandlerForRoutesPdfImages(t *testing.T) {
+	png, _ := actions.Lookup("png")
+	if !same(handlerFor(png, ".pdf"), pdf.Render) {
+		t.Error("png from a PDF should use pdf.Render")
+	}
+	if !same(handlerFor(png, ".jpg"), media.Image) {
+		t.Error("png from a photo should use media.Image")
+	}
+	shrink, _ := actions.Lookup("shrink")
+	if !same(handlerFor(shrink, ".pdf"), pdf.Shrink) {
+		t.Error("shrink should use pdf.Shrink")
 	}
 }

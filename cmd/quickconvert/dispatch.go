@@ -7,6 +7,7 @@ import (
 	"quickconvert/internal/actions"
 	"quickconvert/internal/app"
 	"quickconvert/internal/media"
+	"quickconvert/internal/pdf"
 	"quickconvert/internal/photo"
 	"quickconvert/internal/textcopy"
 )
@@ -21,11 +22,11 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 	case a.ID == "clean":
 		return photo.Clean
 	case a.ID == "shrink":
-		return notBuiltYet
+		return pdf.Shrink
 	case a.ID == "md":
 		return notBuiltYet
 	case ext == ".pdf": // png, jpg from a PDF
-		return notBuiltYet
+		return pdf.Render
 	case a.ID == "mp4" || a.ID == "gif" || (a.ID == "mp3" && isVideo(ext)):
 		return media.Video
 	case a.ID == "mp3" || a.ID == "wav":

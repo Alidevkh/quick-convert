@@ -161,3 +161,57 @@ func RunHandler(t *testing.T, h app.Handler, input, id string) (app.Result, erro
 	}
 	return h(context.Background(), j)
 }
+
+// MakePDF creates an A4 text PDF with the given number of pages, using
+// Ghostscript. Each page has a title line and its page number.
+func MakePDF(t *testing.T, dir, name string, pages int) string {
+	t.Helper()
+	var ps strings.Builder
+	ps.WriteString("%!PS\n<< /PageSize [595 842] >> setpagedevice\n")
+	for i := 1; i <= pages; i++ {
+		ps.WriteString("/Helvetica findfont 14 scalefont setfont 72 760 moveto (Sample document text) show\n")
+		ps.WriteString("72 40 moveto (" + strconv.Itoa(i) + ") show showpage\n")
+	}
+	return psToPDF(t, dir, name, ps.String())
+}
+
+// MakePDFFromPS turns a PostScript program into a PDF named name.
+func MakePDFFromPS(t *testing.T, dir, name, postscript string) string {
+	t.Helper()
+	return psToPDF(t, dir, name, postscript)
+}
+
+func psToPDF(t *testing.T, dir, name, postscript string) string {
+	t.Helper()
+	src := filepath.Join(t.TempDir(), "doc.ps")
+	os.WriteFile(src, []byte(postscript), 0o644)
+	path := filepath.Join(dir, name)
+	Run(t, "gs", "-q", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=pdfwrite", "-sOutputFile="+path, src)
+	return path
+}
+
+// MakeImagePDF creates a one-page PDF that is just a big, noisy photo
+// (like a scan): it has no text and it can be made much smaller.
+func MakeImagePDF(t *testing.T, dir, name string) string {
+	t.Helper()
+	tmp := t.TempDir()
+	jpg := filepath.Join(tmp, "scan.jpg")
+	Run(t, "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+		"-f", "lavfi", "-i", "color=c=gray:s=2000x2800",
+		"-vf", "noise=alls=60:allf=t", "-frames:v", "1", "-q:v", "2", jpg)
+	page := filepath.Join(tmp, "page.txt")
+	os.WriteFile(page, []byte("%%MediaBox 0 0 595 842\n%%Image Im0 "+jpg+"\nq 595 0 0 842 0 0 cm /Im0 Do Q\n"), 0o644)
+	path := filepath.Join(dir, name)
+	Run(t, "mutool", "create", "-o", path, page)
+	return path
+}
+
+// MakeEncryptedPDF creates a password-protected PDF.
+func MakeEncryptedPDF(t *testing.T, dir, name string) string {
+	t.Helper()
+	plain := MakePDF(t, t.TempDir(), "plain.pdf", 1)
+	path := filepath.Join(dir, name)
+	Run(t, "gs", "-q", "-dBATCH", "-dNOPAUSE", "-sDEVICE=pdfwrite",
+		"-sOwnerPassword=owner", "-sUserPassword=user", "-sOutputFile="+path, plain)
+	return path
+}
