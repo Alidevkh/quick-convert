@@ -1,13 +1,13 @@
 package main
 
 import (
-	"context"
 	"strings"
 
 	"quickconvert/internal/actions"
 	"quickconvert/internal/app"
 	"quickconvert/internal/media"
 	"quickconvert/internal/pdf"
+	"quickconvert/internal/pdfmd"
 	"quickconvert/internal/photo"
 	"quickconvert/internal/textcopy"
 )
@@ -24,7 +24,7 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 	case a.ID == "shrink":
 		return pdf.Shrink
 	case a.ID == "md":
-		return notBuiltYet
+		return pdfmd.Convert
 	case ext == ".pdf": // png, jpg from a PDF
 		return pdf.Render
 	case a.ID == "mp4" || a.ID == "gif" || (a.ID == "mp3" && isVideo(ext)):
@@ -34,11 +34,6 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 	default: // png, jpg, webp from a picture
 		return media.Image
 	}
-}
-
-// notBuiltYet stands in for converters that are not written yet.
-func notBuiltYet(ctx context.Context, j app.Job) (app.Result, error) {
-	return app.Result{}, &app.UserError{Msg: "Not built yet"}
 }
 
 // isVideo reports whether ext is one of the video types (mp3 from a video

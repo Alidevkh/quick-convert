@@ -7,6 +7,7 @@ import (
 	"quickconvert/internal/app"
 	"quickconvert/internal/media"
 	"quickconvert/internal/pdf"
+	"quickconvert/internal/pdfmd"
 
 	"quickconvert/internal/actions"
 )
@@ -52,5 +53,20 @@ func TestHandlerForRoutesPdfImages(t *testing.T) {
 	shrink, _ := actions.Lookup("shrink")
 	if !same(handlerFor(shrink, ".pdf"), pdf.Shrink) {
 		t.Error("shrink should use pdf.Shrink")
+	}
+}
+
+func TestMarkdownRouting(t *testing.T) {
+	md, _ := actions.Lookup("md")
+	if !same(handlerFor(md, ".pdf"), pdfmd.Convert) {
+		t.Error("md should use pdfmd.Convert")
+	}
+	for _, ext := range actions.AllExts() {
+		for _, item := range append(actions.Submenu(ext), actions.Extras(ext)...) {
+			a, _ := actions.Lookup(item.ActionID)
+			if handlerFor(a, ext) == nil {
+				t.Errorf("%s %s has no converter", ext, item.ActionID)
+			}
+		}
 	}
 }
