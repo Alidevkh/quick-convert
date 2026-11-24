@@ -1,0 +1,215 @@
+package app
+
+import (
+	"bytes"
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"quickconvert/internal/actions"
+)
+
+// recorder remembers every notification shown.
+type recorder struct {
+	mu    sync.Mutex
+	calls [][2]string
+}
+
+func (r *recorder) notify(title, body string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, [2]string{title, body})
+}
+
+func (r *recorder) all() [][2]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([][2]string{}, r.calls...)
+}
+
+func (r *recorder) last() [2]string {
+	c := r.all()
+	if len(c) == 0 {
+		return [2]string{}
+	}
+	return c[len(c)-1]
+}
+
+// setup creates an input file and Deps whose handler is h.
+func setup(t *testing.T, name string, h Handler) (string, *recorder, *bytes.Buffer, Deps) {
+	t.Helper()
+	dir := t.TempDir()
+	input := filepath.Join(dir, name)
+	os.WriteFile(input, []byte("original"), 0o644)
+	rec := &recorder{}
+	log := &bytes.Buffer{}
+	d := Deps{
+		Notify:     rec.notify,
+		Acquire:    func() func() { return func() {} },
+		Log:        log,
+		Handlers:   func(actions.Action, string) Handler { return h },
+		StartDelay: time.Hour,
+	}
+	return input, rec, log, d
+}
+
+// commitCopy is a fake handler that saves the input as Base+Tag+OutExt.
+func commitCopy(ctx context.Context, j Job) (Result, error) {
+	data, _ := os.ReadFile(filepath.Join(j.Work.Dir, j.Work.In))
+	os.WriteFile(filepath.Join(j.Work.Dir, "out"), data, 0o644)
+	p, err := j.Work.Commit("out", j.Base+j.Action.Tag, j.Action.OutExt)
+	return Result{Outputs: []string{p}}, err
+}
+
+func TestRunSuccessNotifies(t *testing.T) {
+	input, rec, _, d := setup(t, "x.txt", commitCopy)
+	if code := Run(context.Background(), "code-py", input, d); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if got := rec.last(); got[0] != "Done: x.py" {
+		t.Errorf("notify = %v", got)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(input), "x.py")); err != nil {
+		t.Error("x.py not created")
+	}
+}
+
+func TestRunFailureCleansUp(t *testing.T) {
+	failing := func(ctx context.Context, j Job) (Result, error) {
+		os.WriteFile(filepath.Join(j.Work.Dir, "half.py"), []byte("x"), 0o644)
+		return Result{}, &UserError{Msg: "boom"}
+	}
+	input, rec, _, d := setup(t, "x.txt", failing)
+	before, _ := os.Stat(input)
+
+	if code := Run(context.Background(), "code-py", input, d); code != 1 {
+		t.Fatalf("exit %d", code)
+	}
+	if got := rec.last(); got != [2]string{"Couldn't convert x.txt", "boom"} {
+		t.Errorf("notify = %v", got)
+	}
+	left, _ := filepath.Glob(filepath.Join(filepath.Dir(input), ".qc-*.part"))
+	if len(left) != 0 {
+		t.Errorf("left behind: %v", left)
+	}
+	after, _ := os.Stat(input)
+	data, _ := os.ReadFile(input)
+	if string(data) != "original" || !after.ModTime().Equal(before.ModTime()) {
+		t.Error("original was changed")
+	}
+}
+
+func TestRunUnsupported(t *testing.T) {
+	input, rec, _, d := setup(t, "x.txt", commitCopy)
+	if code := Run(context.Background(), "mp4", input, d); code != 1 {
+		t.Fatalf("exit %d", code)
+	}
+	if got := rec.last(); got[1] != "MP4 isn't available for .txt files" {
+		t.Errorf("notify = %v", got)
+	}
+}
+
+func TestRunMissingInput(t *testing.T) {
+	_, rec, _, d := setup(t, "x.txt", commitCopy)
+	if code := Run(context.Background(), "code-py", "/nope/x.txt", d); code != 1 {
+		t.Fatalf("exit %d", code)
+	}
+	if got := rec.last(); got[0] != "Couldn't convert x.txt" {
+		t.Errorf("notify = %v", got)
+	}
+}
+
+func TestRunDetail(t *testing.T) {
+	h := func(ctx context.Context, j Job) (Result, error) {
+		r, err := commitCopy(ctx, j)
+		r.Detail = "2 MB → 1 MB"
+		return r, err
+	}
+	input, rec, _, d := setup(t, "x.pdf", h)
+	Run(context.Background(), "shrink", input, d)
+	if got := rec.last(); got[0] != "Done: x (small).pdf (2 MB → 1 MB)" {
+		t.Errorf("notify = %v", got)
+	}
+}
+
+func TestRunManyOutputs(t *testing.T) {
+	h := func(ctx context.Context, j Job) (Result, error) {
+		return Result{Outputs: []string{"/a/r-1.png", "/a/r-2.png", "/a/r-3.png", "/a/r-4.png", "/a/r-5.png"}}, nil
+	}
+	input, rec, _, d := setup(t, "r.pdf", h)
+	Run(context.Background(), "png", input, d)
+	if got := rec.last(); got[0] != "Done: r-1.png + 4 more" {
+		t.Errorf("notify = %v", got)
+	}
+}
+
+func TestRunInfo(t *testing.T) {
+	h := func(ctx context.Context, j Job) (Result, error) {
+		return Result{}, &Info{Msg: "Already optimized — no smaller file made"}
+	}
+	input, rec, _, d := setup(t, "x.pdf", h)
+	if code := Run(context.Background(), "shrink", input, d); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if got := rec.last(); got != [2]string{"QuickConvert", "Already optimized — no smaller file made"} {
+		t.Errorf("notify = %v", got)
+	}
+}
+
+func TestStartNotificationOnlyWhenSlow(t *testing.T) {
+	slow := func(ctx context.Context, j Job) (Result, error) {
+		time.Sleep(120 * time.Millisecond)
+		return commitCopy(ctx, j)
+	}
+	input, rec, _, d := setup(t, "x.mov", slow)
+	d.StartDelay = 50 * time.Millisecond
+	Run(context.Background(), "mp4", input, d)
+	calls := rec.all()
+	if len(calls) != 2 || calls[0][0] != "Converting x.mov → MP4…" {
+		t.Errorf("slow job calls = %v", calls)
+	}
+
+	input2, rec2, _, d2 := setup(t, "y.mov", commitCopy)
+	d2.StartDelay = 50 * time.Millisecond
+	Run(context.Background(), "mp4", input2, d2)
+	time.Sleep(80 * time.Millisecond) // a late timer would fire here
+	if calls := rec2.all(); len(calls) != 1 {
+		t.Errorf("fast job calls = %v", calls)
+	}
+}
+
+func TestHeavyAcquires(t *testing.T) {
+	acquired, released := 0, 0
+	acquire := func() func() {
+		acquired++
+		return func() { released++ }
+	}
+	input, _, _, d := setup(t, "x.mov", commitCopy)
+	d.Acquire = acquire
+	Run(context.Background(), "mp4", input, d)
+	if acquired != 1 || released != 1 {
+		t.Errorf("heavy: acquired %d released %d", acquired, released)
+	}
+
+	acquired, released = 0, 0
+	input2, _, _, d2 := setup(t, "x.txt", commitCopy)
+	d2.Acquire = acquire
+	Run(context.Background(), "code-py", input2, d2)
+	if acquired != 0 {
+		t.Errorf("light job acquired %d", acquired)
+	}
+}
+
+func TestLogLine(t *testing.T) {
+	input, _, log, d := setup(t, "x.txt", commitCopy)
+	Run(context.Background(), "code-py", input, d)
+	line := log.String()
+	if strings.Count(line, "\n") != 1 || !strings.Contains(line, "code-py") ||
+		!strings.Contains(line, input) || !strings.Contains(line, "x.py") {
+		t.Errorf("log = %q", line)
+	}
+}
