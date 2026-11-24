@@ -12,6 +12,7 @@
 
 ## Global Constraints
 
+- **Readability (owner request):** the owner must be able to read and follow the code. Every file starts with a comment saying what it does and how it fits in; every exported function has a plain-English doc comment; prefer short, straightforward functions over clever ones; name things for what they mean (`outputName`, not `on`); explain every engine command-line flag in a comment next to it. Task 10 adds `docs/CODE-GUIDE.md` — a short map of the code, in Arabic, explaining which file does what and how one right-click flows through the program.
 - Module path `quickconvert`. Go 1.24. **No third-party Go modules.**
 - **Never overwrite, modify or delete the original. Never overwrite any existing file.**
 - Output goes in the original's folder. Duplicates become `name (1).ext`, `name (2).ext`, …; the suffix comes after any tag, e.g. `photo (clean) (1).jpg`.
@@ -514,7 +515,7 @@ Registry layout (cascade via an empty `SubCommands` value + a nested `shell` key
 ### Task 10: Windows engines, build and package
 
 **Files:**
-- Create: `scripts/fetch-engines.sh`, `scripts/build.sh`, `packaging/README.txt`
+- Create: `scripts/fetch-engines.sh`, `scripts/build.sh`, `packaging/README.txt`, `docs/CODE-GUIDE.md` (Arabic code map, see Global Constraints)
 
 **Interfaces:**
 - Consumes: everything above.
