@@ -1,7 +1,6 @@
 package media
 
 import (
-	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -9,35 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"quickconvert/internal/actions"
 	"quickconvert/internal/app"
-	"quickconvert/internal/engines"
-	"quickconvert/internal/outpath"
 	"quickconvert/internal/testutil"
 )
 
-// convert runs handler h on input for action id, the same way app.Run does.
-func convert(t *testing.T, h app.Handler, input, id string) (app.Result, error) {
-	t.Helper()
-	a, ok := actions.Lookup(id)
-	if !ok {
-		t.Fatalf("unknown action %s", id)
-	}
-	w, err := outpath.NewWork(filepath.Dir(input))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer w.Cleanup()
-	if err := w.LinkInput(input); err != nil {
-		t.Fatal(err)
-	}
-	name := filepath.Base(input)
-	j := app.Job{
-		Input: input, Base: strings.TrimSuffix(name, filepath.Ext(name)),
-		Ext: strings.ToLower(filepath.Ext(name)), Action: a, Work: w, Eng: engines.Default(),
-	}
-	return h(context.Background(), j)
-}
+var convert = testutil.RunHandler
 
 func contains(args []string, want string) bool {
 	return strings.Contains(strings.Join(args, " "), want)

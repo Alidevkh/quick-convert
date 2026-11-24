@@ -7,6 +7,8 @@ import (
 	"quickconvert/internal/actions"
 	"quickconvert/internal/app"
 	"quickconvert/internal/media"
+	"quickconvert/internal/photo"
+	"quickconvert/internal/textcopy"
 )
 
 // handlerFor picks the converter for an action and a file extension.
@@ -15,9 +17,9 @@ import (
 func handlerFor(a actions.Action, ext string) app.Handler {
 	switch {
 	case a.ID == "txt" || strings.HasPrefix(a.ID, "code-"):
-		return notBuiltYet
+		return textcopy.Copy
 	case a.ID == "clean":
-		return notBuiltYet
+		return photo.Clean
 	case a.ID == "shrink":
 		return notBuiltYet
 	case a.ID == "md":
