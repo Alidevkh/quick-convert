@@ -215,3 +215,34 @@ func TestImageRotatedHasNoOrientationTag(t *testing.T) {
 		t.Errorf("output still has Orientation %q", got)
 	}
 }
+
+// iPhone photos are stored as tiles; ffmpeg refuses extra steps (rotate,
+// white background...) on them in the same command. And the photo must
+// come out portrait, as on the phone — not rotated twice.
+func TestImageIPhoneHEICToPNG(t *testing.T) {
+	testutil.NeedHEIC(t)
+	testutil.Need(t, "exiftool")
+	dir := t.TempDir()
+	in := testutil.IPhoneHEIC(t, dir, "IMG_6736.HEIC")
+	r, err := convert(t, Image, in, "png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 3024 || h != 4032 {
+		t.Errorf("got %dx%d, want portrait 3024x4032", w, h)
+	}
+}
+
+func TestImageIPhoneHEICToJPG(t *testing.T) {
+	testutil.NeedHEIC(t)
+	testutil.Need(t, "exiftool")
+	dir := t.TempDir()
+	in := testutil.IPhoneHEIC(t, dir, "IMG_6736.HEIC")
+	r, err := convert(t, Image, in, "jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 3024 || h != 4032 {
+		t.Errorf("got %dx%d, want portrait 3024x4032", w, h)
+	}
+}

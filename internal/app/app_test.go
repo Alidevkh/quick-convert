@@ -305,3 +305,40 @@ func TestRunSetsInputs(t *testing.T) {
 		t.Errorf("Inputs = %v Ins = %v", seen.Inputs, seen.Work.Ins)
 	}
 }
+
+// The log must say which version ran and what the engine really said, so a
+// failure on the owner's PC can be understood from one log line.
+func TestLogIncludesVersionAndEngineDetails(t *testing.T) {
+	broken := func(ctx context.Context, j Job) (Result, error) {
+		return Result{}, &engines.EngineError{Name: "ffmpeg", Tail: "Error opening output files: Invalid argument",
+			Stderr: "Input #0, mov\nFiltergraph 'x' was specified for a stream fed from a complex filtergraph.\nError opening output file out.png.\nError opening output files: Invalid argument\n"}
+	}
+	input, _, log, d := setup(t, "a.heic", broken)
+	d.Version = "0.3.0"
+	Run(context.Background(), "png", input, d)
+	line := log.String()
+	if !strings.Contains(line, "v0.3.0") {
+		t.Errorf("version missing: %q", line)
+	}
+	if !strings.Contains(line, "complex filtergraph") {
+		t.Errorf("engine details missing: %q", line)
+	}
+	if strings.Count(line, "\n") != 1 {
+		t.Errorf("log entry must stay on one line: %q", line)
+	}
+}
+
+func TestLogKeepsEngineDetailsThroughForFile(t *testing.T) {
+	broken := func(ctx context.Context, j Job) (Result, error) {
+		return Result{}, ForFile("a.heic", &engines.EngineError{Name: "ffmpeg", Tail: "Invalid argument",
+			Stderr: "complex filtergraph problem\nInvalid argument\n"})
+	}
+	input, rec, log, d := setup(t, "a.heic", broken)
+	RunMany(context.Background(), "imgpdf", []string{input}, d)
+	if !strings.Contains(log.String(), "complex filtergraph problem") {
+		t.Errorf("engine details lost: %q", log.String())
+	}
+	if got := rec.last(); !strings.HasPrefix(got[1], "a.heic: ") {
+		t.Errorf("notification = %v", got)
+	}
+}

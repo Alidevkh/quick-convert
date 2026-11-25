@@ -8,6 +8,7 @@ package media
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -217,6 +218,31 @@ func Orientation(ctx context.Context, eng *engines.Set, dir, in string) int {
 	return n
 }
 
+// Readable prepares a picture for the other ffmpeg steps and returns the
+// file name to use and its EXIF orientation.
+//
+// iPhone photos (HEIC) are stored as a grid of small tiles. ffmpeg puts the
+// tiles together with its own internal step, and then refuses any extra
+// step (rotate, shrink, white background...) in the same command
+// ("Error opening output files: Invalid argument"). So a HEIC photo is
+// first turned into a plain PNG on its own. ffmpeg also applies the HEIC
+// photo's own rotation while doing so (as the HEIC standard says), so the
+// PNG is already upright: orientation 1.
+func Readable(ctx context.Context, eng *engines.Set, dir, in string) (name string, orientation int, err error) {
+	ext := strings.ToLower(filepath.Ext(in))
+	if ext != ".heic" && ext != ".heif" {
+		return in, Orientation(ctx, eng, dir, in), nil
+	}
+	png := "decoded-" + strings.TrimSuffix(in, filepath.Ext(in)) + ".png"
+	_, err = eng.Run(ctx, dir, "ffmpeg",
+		"-hide_banner", "-nostdin", "-y",
+		"-i", in, // no -noautorotate: let ffmpeg apply the photo's own rotation
+		"-frames:v", "1",
+		"-update", "1", // one picture, one file
+		png)
+	return png, 1, err
+}
+
 // Video converts a video to MP4, MP3 or GIF.
 func Video(ctx context.Context, j app.Job) (app.Result, error) {
 	info, err := Probe(ctx, j.Eng, j.Work.Dir, j.Work.In)
@@ -258,8 +284,11 @@ func Audio(ctx context.Context, j app.Job) (app.Result, error) {
 // Image converts a picture to PNG, JPG or WEBP, keeping it upright.
 func Image(ctx context.Context, j app.Job) (app.Result, error) {
 	out := "out" + j.Action.OutExt
-	orientation := Orientation(ctx, j.Eng, j.Work.Dir, j.Work.In)
-	args := ImageArgs(j.Work.In, out, j.Action.ID, orientation)
+	in, orientation, err := Readable(ctx, j.Eng, j.Work.Dir, j.Work.In)
+	if err != nil {
+		return app.Result{}, err
+	}
+	args := ImageArgs(in, out, j.Action.ID, orientation)
 	return runAndSave(ctx, j, out, args)
 }
 

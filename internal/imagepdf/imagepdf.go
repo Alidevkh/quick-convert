@@ -55,8 +55,11 @@ func Convert(ctx context.Context, j app.Job) (app.Result, error) {
 
 // preparePage runs ffmpeg on one photo and reads the resulting JPEG.
 func preparePage(ctx context.Context, j app.Job, in, out string) (pdfwriter.Page, error) {
-	orientation := media.Orientation(ctx, j.Eng, j.Work.Dir, in)
-	if _, err := j.Eng.Run(ctx, j.Work.Dir, "ffmpeg", media.PageArgs(in, out, orientation)...); err != nil {
+	readable, orientation, err := media.Readable(ctx, j.Eng, j.Work.Dir, in)
+	if err != nil {
+		return pdfwriter.Page{}, err
+	}
+	if _, err := j.Eng.Run(ctx, j.Work.Dir, "ffmpeg", media.PageArgs(readable, out, orientation)...); err != nil {
 		return pdfwriter.Page{}, err
 	}
 	data, err := os.ReadFile(filepath.Join(j.Work.Dir, out))

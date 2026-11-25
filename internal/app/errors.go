@@ -11,9 +11,15 @@ import (
 
 // UserError is a failure with a message meant for the user, shown in the
 // notification as the reason, e.g. "This video has no audio".
-type UserError struct{ Msg string }
+type UserError struct {
+	Msg string
+	Err error // the technical cause, if any (kept for the log file)
+}
 
 func (e *UserError) Error() string { return e.Msg }
+
+// Unwrap lets the log find the technical cause behind the friendly message.
+func (e *UserError) Unwrap() error { return e.Err }
 
 // Info is not a failure: the job decided not to create a file and wants to
 // tell the user why, e.g. "Already optimized — no smaller file made".
@@ -29,9 +35,9 @@ func ForFile(name string, err error) error {
 	var engineErr *engines.EngineError
 	switch {
 	case errors.As(err, &userErr):
-		return &UserError{Msg: name + ": " + userErr.Msg}
+		return &UserError{Msg: name + ": " + userErr.Msg, Err: err}
 	case errors.As(err, &engineErr):
-		return &UserError{Msg: name + ": " + reason(err, filepath.Ext(name))}
+		return &UserError{Msg: name + ": " + reason(err, filepath.Ext(name)), Err: err}
 	default:
 		return err // e.g. a missing engine: not about this file
 	}

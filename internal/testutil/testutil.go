@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -228,4 +229,33 @@ func MediaBoxes(t *testing.T, pdf string) []string {
 		boxes = append(boxes, strings.Join(m[1:], " "))
 	}
 	return boxes
+}
+
+// IPhoneHEIC copies the sample iPhone photo (portrait, tiled, rotated) into
+// dir under the given name and returns its path.
+func IPhoneHEIC(t *testing.T, dir, name string) string {
+	t.Helper()
+	_, here, _, _ := runtime.Caller(0)
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(here), "testdata", "iphone-portrait.heic"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// NeedHEIC skips the test unless the ffmpeg on PATH can read iPhone photos
+// (ffmpeg 7.1 or newer). Run the tests with a newer ffmpeg first on PATH to
+// include them.
+func NeedHEIC(t *testing.T) {
+	t.Helper()
+	Need(t, "ffmpeg", "ffprobe")
+	sample := IPhoneHEIC(t, t.TempDir(), "probe.heic")
+	out, err := exec.Command("ffprobe", "-v", "error", "-show_stream_groups", sample).Output()
+	if err != nil || !strings.Contains(string(out), "Tile Grid") {
+		t.Skip("this ffmpeg cannot read HEIC photos (needs 7.1 or newer)")
+	}
 }

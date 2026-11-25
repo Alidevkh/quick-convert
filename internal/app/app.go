@@ -51,6 +51,7 @@ type Deps struct {
 	Eng        *engines.Set                               // where the engines are
 	Handlers   func(a actions.Action, ext string) Handler // pick the converter
 	StartDelay time.Duration                              // show "Converting…" only after this long
+	Version    string                                     // program version, written in the log
 }
 
 // Exit codes returned by Run.
@@ -70,7 +71,7 @@ func Run(ctx context.Context, actionID, input string, d Deps) (code int) {
 	var runErr error
 
 	// Whatever happens, write one line to the log at the end.
-	defer func() { writeLog(d.Log, actionID, input, outputs, runErr) }()
+	defer func() { writeLog(d.Log, d.Version, actionID, input, outputs, runErr) }()
 
 	fail := func(err error) int {
 		runErr = err
@@ -106,7 +107,7 @@ func Run(ctx context.Context, actionID, input string, d Deps) (code int) {
 func RunMany(ctx context.Context, actionID string, inputs []string, d Deps) (code int) {
 	var outputs []string
 	var runErr error
-	defer func() { writeLog(d.Log, actionID, strings.Join(inputs, ", "), outputs, runErr) }()
+	defer func() { writeLog(d.Log, d.Version, actionID, strings.Join(inputs, ", "), outputs, runErr) }()
 
 	entry, ok := actions.SendToFor(actionID)
 	if !ok {
@@ -246,14 +247,34 @@ func reason(err error, ext string) string {
 	}
 }
 
-// writeLog appends one line: time, action, input, then results or error.
-func writeLog(w io.Writer, actionID, input string, outputs []string, err error) {
+// writeLog appends one line: time, version, action, input, then the results
+// or the error. For an engine failure it also adds the engine's last few
+// messages, which usually say exactly why it failed.
+func writeLog(w io.Writer, version, actionID, input string, outputs []string, err error) {
 	if w == nil {
 		return
 	}
-	line := fmt.Sprintf("%s %s %s -> %s", time.Now().Format(time.RFC3339), actionID, input, strings.Join(outputs, ", "))
+	line := fmt.Sprintf("%s v%s %s %s -> %s", time.Now().Format(time.RFC3339), version, actionID, input, strings.Join(outputs, ", "))
 	if err != nil {
 		line += " | " + err.Error()
+		var engineErr *engines.EngineError
+		if errors.As(err, &engineErr) {
+			line += " | details: " + lastLines(engineErr.Stderr, 5)
+		}
 	}
 	fmt.Fprintln(w, line)
+}
+
+// lastLines returns the last n non-empty lines of s, joined with " / ".
+func lastLines(s string, n int) string {
+	var lines []string
+	for _, l := range strings.Split(s, "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			lines = append(lines, l)
+		}
+	}
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, " / ")
 }
