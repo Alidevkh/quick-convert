@@ -51,6 +51,7 @@ func main() {
 		Eng:        engines.Default(),
 		Handlers:   handlerFor,
 		StartDelay: time.Second,
+		Version:    version,
 	}
 	var code int
 	if isSendTo {
