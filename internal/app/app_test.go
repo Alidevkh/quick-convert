@@ -175,10 +175,13 @@ func TestStartNotificationOnlyWhenSlow(t *testing.T) {
 		t.Errorf("slow job calls = %v", calls)
 	}
 
+	// A fast job, with the program's real 1-second delay. (A 50 ms delay
+	// made this test flaky: on a busy machine even creating the temporary
+	// folder can take longer than 50 ms.)
 	input2, rec2, _, d2 := setup(t, "y.mov", commitCopy)
-	d2.StartDelay = 50 * time.Millisecond
+	d2.StartDelay = time.Second
 	Run(context.Background(), "mp4", input2, d2)
-	time.Sleep(80 * time.Millisecond) // a late timer would fire here
+	time.Sleep(1100 * time.Millisecond) // a timer that was not stopped would fire here
 	if calls := rec2.all(); len(calls) != 1 {
 		t.Errorf("fast job calls = %v", calls)
 	}
