@@ -88,7 +88,7 @@ type group struct {
 
 var groups = []group{
 	{ // video
-		exts: []string{".mov", ".mp4", ".mkv", ".avi", ".webm", ".wmv"},
+		exts: videoExts,
 		items: []MenuItem{
 			{"mp4", "MP4 (full quality, for editing)"}, {"whatsapp", "MP4 (WhatsApp / any device)"},
 			{"mp3", "MP3 (audio only)"}, {"m4a", "M4A (audio only)"}, {"gif", "GIF"},

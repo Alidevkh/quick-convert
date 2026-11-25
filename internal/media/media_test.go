@@ -48,6 +48,7 @@ func TestMP4ArgsAudioTracks(t *testing.T) {
 		{Index: 1, Type: "audio", Codec: "pcm_s16le"},
 		{Index: 2, Type: "audio", Codec: "none"},
 		{Index: 3, Type: "audio", Codec: "opus"},
+		{Index: 6, Type: "audio", Codec: "apple_apac"}, // iPhone spatial audio: newer ffmpeg names it but can't decode it
 		{Index: 4, Type: "subtitle", Codec: "subrip"},
 		{Index: 5, Type: "subtitle", Codec: "hdmv_pgs_subtitle"},
 	}}
@@ -57,7 +58,7 @@ func TestMP4ArgsAudioTracks(t *testing.T) {
 			t.Errorf("missing %q in %s", want, args)
 		}
 	}
-	if strings.Contains(args, "0:2 ") || strings.Contains(args, "0:5") {
+	if strings.Contains(args, "0:2 ") || strings.Contains(args, "0:5") || strings.Contains(args, "0:6") {
 		t.Errorf("args = %s", args)
 	}
 }

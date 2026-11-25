@@ -194,3 +194,14 @@ func TestScriptsAreASCII(t *testing.T) {
 		}
 	}
 }
+
+// An entry removed in a newer version (e.g. "Remove metadata" on .mkv) must
+// still be deleted by install (upgrade) and uninstall.
+func TestScriptsDeleteRetiredEntries(t *testing.T) {
+	key := root + `.mkv\shell\QuickConvert.clean`
+	for name, s := range map[string]string{"install": InstallScript(), "uninstall": UninstallScript()} {
+		if !strings.Contains(s, `reg delete "`+key+`"`) {
+			t.Errorf("%s does not delete %s", name, key)
+		}
+	}
+}

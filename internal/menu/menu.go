@@ -115,10 +115,28 @@ func addEntries(s *script, ext string) {
 func addDeletes(s *script) {
 	for _, ext := range actions.AllExts() {
 		s.regDelete(classesRoot + ext + `\shell\QuickConvert`)
-		for _, item := range actions.Extras(ext) {
-			s.regDelete(classesRoot + ext + `\shell\QuickConvert.` + item.ActionID)
+		// Every top-level entry on every type, not only today's: an older
+		// version may have added one that no longer exists (e.g.
+		// "Remove metadata" on .mkv).
+		for _, id := range extraIDs() {
+			s.regDelete(classesRoot + ext + `\shell\QuickConvert.` + id)
 		}
 	}
+}
+
+// extraIDs lists every top-level action ID used on any file type.
+func extraIDs() []string {
+	seen := map[string]bool{}
+	var ids []string
+	for _, ext := range actions.AllExts() {
+		for _, item := range actions.Extras(ext) {
+			if !seen[item.ActionID] {
+				seen[item.ActionID] = true
+				ids = append(ids, item.ActionID)
+			}
+		}
+	}
+	return ids
 }
 
 // script builds a Windows batch file. Batch files need CRLF line endings.

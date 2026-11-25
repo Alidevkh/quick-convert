@@ -154,8 +154,9 @@ func MP4Args(in, out string, i Info) []string {
 			}
 		case s.Type == "audio" && !s.Cover:
 			switch {
-			case s.Codec == "none" || s.Codec == "":
-				// ffmpeg doesn't know it (e.g. iPhone spatial audio): leave it out
+			case s.Codec == "none" || s.Codec == "" || strings.Contains(s.Codec, "apac"):
+				// ffmpeg can't read it (iPhone spatial audio, called "apple_apac"
+				// by newer ffmpeg): leave it out
 			case s.Codec == "aac" || s.Codec == "mp3" || s.Codec == "alac" || s.Codec == "ac3" || s.Codec == "eac3":
 				add(s, "-c", "copy")
 			case s.Codec == "flac" || strings.HasPrefix(s.Codec, "pcm_"):
