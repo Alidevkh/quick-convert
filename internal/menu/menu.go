@@ -40,6 +40,10 @@ func InstallScript() string {
 	s.add("")
 	s.add("rem 2. Copy the program files (skipped when run from the install folder).")
 	s.add(`if /I not "%~dp0"=="%DEST%\" robocopy "%~dp0." "%DEST%" /E /NFL /NDL /NJH /NJS /NP >nul`)
+	// Files unzipped from a download carry Windows' "from the internet" mark;
+	// SmartScreen then stops the Send to shortcuts ("unknown publisher").
+	// Remove the mark from QuickConvert's own installed files only.
+	s.add(`powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPath $env:DEST -Recurse | Unblock-File"`)
 	s.add("")
 	s.add("rem 3. Add the right-click menu entries.")
 	for _, ext := range actions.AllExts() {

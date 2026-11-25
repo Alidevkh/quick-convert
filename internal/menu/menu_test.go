@@ -169,3 +169,15 @@ func TestInstallJpgHasPDFEntry(t *testing.T) {
 		t.Errorf("missing:\n%s", want)
 	}
 }
+
+// Files unzipped from a download carry Windows' "from the internet" mark,
+// so SmartScreen stops the Send to shortcuts. The installer removes the
+// mark from QuickConvert's own installed files, after copying them.
+func TestInstallUnblocksInstalledFiles(t *testing.T) {
+	s := InstallScript()
+	unblock := strings.Index(s, `Get-ChildItem -LiteralPath $env:DEST -Recurse | Unblock-File`)
+	copy := strings.Index(s, "robocopy")
+	if unblock < 0 || unblock < copy || unblock > strings.Index(s, "Images to PDF.lnk") {
+		t.Error("install.cmd must unblock the installed files after copying and before making shortcuts")
+	}
+}

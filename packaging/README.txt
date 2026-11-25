@@ -86,6 +86,12 @@ Text and code
 
 IF SOMETHING GOES WRONG
 -----------------------
+"Windows protected your PC" (SmartScreen) when using Send to:
+QuickConvert is not signed with a paid certificate. install.cmd removes the
+"downloaded from the internet" mark from its own files, so this should not
+appear. If it does: right-click %LOCALAPPDATA%\QuickConvert\quickconvert.exe
+> Properties > tick "Unblock" > OK.
+
 The notification gives the reason. Details are written to:
   %LOCALAPPDATA%\QuickConvert\log.txt
 
