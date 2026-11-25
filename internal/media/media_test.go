@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"quickconvert/internal/app"
+	"quickconvert/internal/engines"
 	"quickconvert/internal/testutil"
 )
 
@@ -367,8 +368,8 @@ func TestWhatsAppHDRToneMapped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l := lumaOfFirstFrame(t, r.Outputs[0]); l < 170 {
-		t.Errorf("brightness %.0f, want > 170 (tone-mapped, not grey)", l)
+	if l := lumaOfFirstFrame(t, r.Outputs[0]); l < 180 {
+		t.Errorf("brightness %.0f, want > 180 (tone-mapped, not grey)", l)
 	}
 	if trc := streamField(t, r.Outputs[0], "color_transfer"); trc != "bt709" {
 		t.Errorf("color_transfer %q, want bt709", trc)
@@ -403,5 +404,68 @@ func TestWhatsAppHLGReferenceWhite(t *testing.T) {
 	}
 	if l := lumaOfFirstFrame(t, r.Outputs[0]); l < 220 {
 		t.Errorf("reference white came out %.0f, want > 220", l)
+	}
+}
+
+// Slow-motion / 120 fps iPhone videos: more than 60 fps needs H.264 levels
+// many devices can't play. The WhatsApp MP4 is capped at 60 fps.
+func TestWhatsAppCapsFrameRate(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "slomo.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=120:s=640x360",
+		"-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", in)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fps := streamField(t, r.Outputs[0], "avg_frame_rate"); fps != "60/1" {
+		t.Errorf("frame rate %s, want 60/1", fps)
+	}
+}
+
+// A normal 30 fps video keeps its frame rate.
+func TestWhatsAppKeeps30fps(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "normal.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=30:s=640x360",
+		"-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", in)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fps := streamField(t, r.Outputs[0], "avg_frame_rate"); fps != "30/1" {
+		t.Errorf("frame rate %s, want 30/1", fps)
+	}
+}
+
+// Full-range sources (screen recordings, MJPEG) must come out in the normal
+// "TV" range, which every player shows correctly.
+func TestWhatsAppFullRangeBecomesTV(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "screen.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=10:s=640x360",
+		"-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuvj420p", in)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cr := streamField(t, r.Outputs[0], "color_range"); cr != "tv" {
+		t.Errorf("color_range %q, want tv", cr)
+	}
+}
+
+// When the file can't even be read, the log must keep ffprobe's own words.
+func TestProbeFailureKeepsEngineError(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "broken.mov")
+	os.WriteFile(in, []byte("not a video"), 0o644)
+	_, err := convert(t, Video, in, "mp4")
+	var ee *engines.EngineError
+	if !errors.As(err, &ee) {
+		t.Errorf("engine error lost: %v", err)
 	}
 }

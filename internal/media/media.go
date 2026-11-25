@@ -25,6 +25,8 @@ type Info struct {
 	// ColorTransfer of the video, e.g. "bt709" (normal), "smpte2084"
 	// (HDR10 / PQ) or "arib-std-b67" (HLG, used by iPhone HDR video).
 	ColorTransfer string
+	// FrameRate of the video in frames per second (0 if unknown).
+	FrameRate float64
 }
 
 // HDR reports whether the video uses high dynamic range colours, which
@@ -49,6 +51,7 @@ func Probe(ctx context.Context, eng *engines.Set, dir, in string) (Info, error) 
 			CodecType     string `json:"codec_type"`
 			CodecName     string `json:"codec_name"`
 			ColorTransfer string `json:"color_transfer"`
+			AvgFrameRate  string `json:"avg_frame_rate"` // e.g. "30/1" or "120/1"
 			Disposition   struct {
 				AttachedPic int `json:"attached_pic"`
 			} `json:"disposition"`
@@ -62,11 +65,23 @@ func Probe(ctx context.Context, eng *engines.Set, dir, in string) (Info, error) 
 		switch {
 		case s.CodecType == "video" && s.Disposition.AttachedPic == 0 && !info.HasVideo:
 			info.HasVideo, info.VideoCodec, info.ColorTransfer = true, s.CodecName, s.ColorTransfer
+			info.FrameRate = parseRate(s.AvgFrameRate)
 		case s.CodecType == "audio" && !info.HasAudio:
 			info.HasAudio, info.AudioCodec = true, s.CodecName
 		}
 	}
 	return info, nil
+}
+
+// parseRate turns ffprobe's "30000/1001" into 29.97 (0 if unknown).
+func parseRate(r string) float64 {
+	num, den, ok := strings.Cut(r, "/")
+	n, err1 := strconv.ParseFloat(num, 64)
+	d, err2 := strconv.ParseFloat(den, 64)
+	if !ok || err1 != nil || err2 != nil || d == 0 {
+		return 0
+	}
+	return n / d
 }
 
 // start is the beginning of every ffmpeg command.
@@ -148,11 +163,19 @@ func WhatsAppArgs(in, out string, i Info) []string {
 		"-map", "0:a:0?", // ...and the main sound track, if there is one
 		"-map_metadata", "0", // keep date/location information
 	)
-	filters := []string{
-		// Short side at most 1080 px (4K becomes 1080p; portrait stays
-		// portrait). Sizes are kept even, as H.264 requires.
-		"scale='if(gt(iw,ih),-2,min(1080,trunc(iw/2)*2))':'if(gt(iw,ih),min(1080,trunc(ih/2)*2),-2)'",
+	var filters []string
+	if i.FrameRate > 60.5 {
+		// Slow-motion / 120 fps videos: more than 60 fps needs H.264 levels
+		// that many phones and TVs can't play.
+		filters = append(filters, "fps=60")
 	}
+	filters = append(filters,
+		// Short side at most 1080 px (4K becomes 1080p; portrait stays
+		// portrait). Sizes are kept even, as H.264 requires. out_range=tv:
+		// the normal colour range every player shows correctly (screen
+		// recordings are often "full range", which some players show washed out).
+		"scale='if(gt(iw,ih),-2,min(1080,trunc(iw/2)*2))':'if(gt(iw,ih),min(1080,trunc(ih/2)*2),-2)':out_range=tv",
+	)
 	if i.HDR() {
 		filters = append(filters,
 			"zscale=t=linear:npl=100", // HDR signal to real light levels
@@ -170,7 +193,7 @@ func WhatsAppArgs(in, out string, i Info) []string {
 		"-vf", strings.Join(filters, ","),
 		"-c:v", "libx264", "-profile:v", "high", // H.264, the most compatible video format
 		"-preset", "medium", "-crf", "23", // good quality, reasonable size
-		"-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", // label as normal colours
+		"-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv", // label as normal colours
 		"-c:a", "aac", "-b:a", "128k", "-ac", "2", // AAC stereo sound at 128 kbps
 		"-movflags", "+faststart", // starts playing before fully downloaded
 		out)
@@ -306,7 +329,7 @@ func Readable(ctx context.Context, eng *engines.Set, dir, in string) (name strin
 func Video(ctx context.Context, j app.Job) (app.Result, error) {
 	info, err := Probe(ctx, j.Eng, j.Work.Dir, j.Work.In)
 	if err != nil {
-		return app.Result{}, &app.UserError{Msg: "This doesn't look like a video file"}
+		return app.Result{}, &app.UserError{Msg: "This doesn't look like a video file", Err: err}
 	}
 	out := "out" + j.Action.OutExt
 	var args []string
@@ -339,7 +362,7 @@ func Video(ctx context.Context, j app.Job) (app.Result, error) {
 func Audio(ctx context.Context, j app.Job) (app.Result, error) {
 	info, err := Probe(ctx, j.Eng, j.Work.Dir, j.Work.In)
 	if err != nil || !info.HasAudio {
-		return app.Result{}, &app.UserError{Msg: "This doesn't look like an audio file"}
+		return app.Result{}, &app.UserError{Msg: "This doesn't look like an audio file", Err: err}
 	}
 	out := "out" + j.Action.OutExt
 	return runAndSave(ctx, j, out, AudioArgs(j.Work.In, out, j.Action.ID, info))
