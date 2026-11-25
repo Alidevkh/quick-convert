@@ -105,3 +105,10 @@ func TestNewVideoAndAudioRouting(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitRouting(t *testing.T) {
+	split, _ := actions.Lookup("split")
+	if !same(handlerFor(split, ".pdf"), pdf.Split) {
+		t.Error("split should use pdf.Split")
+	}
+}

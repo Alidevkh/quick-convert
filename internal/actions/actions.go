@@ -64,6 +64,7 @@ var all = map[string]Action{
 	"clean":    {ID: "clean", Label: "Remove metadata", Kind: Light, Tag: " (clean)"},
 	"shrink":   {ID: "shrink", Label: "Reduce size", Kind: Heavy, OutExt: ".pdf", Tag: " (small)"},
 	"pdf":      {ID: "pdf", Label: "PDF", Kind: Light, OutExt: ".pdf"},
+	"split":    {ID: "split", Label: "Split into pages", Kind: Light, OutExt: ".pdf"},
 	"imgpdf":   {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
 	"merge":    {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
 }
@@ -111,7 +112,7 @@ var groups = []group{
 // inside "Convert to").
 var extras = []group{
 	{exts: []string{".jpg", ".jpeg", ".png", ".heic", ".webp"}, items: []MenuItem{{"clean", "Remove metadata"}}},
-	{exts: []string{".pdf"}, items: []MenuItem{{"shrink", "Reduce size"}}},
+	{exts: []string{".pdf"}, items: []MenuItem{{"shrink", "Reduce size"}, {"split", "Split into pages"}}},
 }
 
 // codeMenuItems creates the ".py", ".m", ... entries and registers a

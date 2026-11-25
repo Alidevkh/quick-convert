@@ -21,6 +21,7 @@ Right-click a file. On Windows 11, click "Show more options" first
   Convert to >     the formats that make sense for that file
   Remove metadata  (photos) saves "photo (clean).jpg"
   Reduce size      (PDFs) saves "report (small).pdf"
+  Split into pages (PDFs) every page as its own PDF: report-1.pdf, report-2.pdf...
 
 A Windows notification tells you when it starts and when it is done.
 Notifications show "Windows PowerShell" as the sender; that is normal.

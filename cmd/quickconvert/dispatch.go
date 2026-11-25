@@ -24,6 +24,8 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 		return textcopy.Copy
 	case a.ID == "clean":
 		return photo.Clean
+	case a.ID == "split":
+		return pdf.Split
 	case a.ID == "shrink":
 		return pdf.Shrink
 	case a.ID == "pdf" || a.ID == "imgpdf": // photo(s) to PDF

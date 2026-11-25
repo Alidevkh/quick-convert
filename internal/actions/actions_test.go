@@ -60,7 +60,7 @@ func TestSubmenuPDF(t *testing.T) {
 }
 
 func TestExtras(t *testing.T) {
-	if got := Extras(".pdf"); !reflect.DeepEqual(got, []MenuItem{{"shrink", "Reduce size"}}) {
+	if got := Extras(".pdf"); !reflect.DeepEqual(got, []MenuItem{{"shrink", "Reduce size"}, {"split", "Split into pages"}}) {
 		t.Errorf(".pdf = %v", got)
 	}
 	if got := Extras(".heic"); !reflect.DeepEqual(got, []MenuItem{{"clean", "Remove metadata"}}) {

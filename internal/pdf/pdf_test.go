@@ -262,3 +262,54 @@ func TestMergeOwnerPasswordOnly(t *testing.T) {
 		t.Errorf("second PDF's text missing:\n%s", text)
 	}
 }
+
+func TestSplitThreePages(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 3)
+	r, err := testutil.RunHandler(t, Split, in, "split")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(names(r.Outputs), ","); got != "doc-1.pdf,doc-2.pdf,doc-3.pdf" {
+		t.Fatalf("outputs %s", got)
+	}
+	if r.Detail != "3 pages" {
+		t.Errorf("detail %q", r.Detail)
+	}
+	for i, p := range r.Outputs {
+		if n := len(testutil.MediaBoxes(t, p)); n != 1 {
+			t.Errorf("%s has %d pages, want 1", filepath.Base(p), n)
+		}
+		text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", p)
+		if want := "Doc page " + strconv.Itoa(i+1); !strings.Contains(text, want) {
+			t.Errorf("%s does not contain %q", filepath.Base(p), want)
+		}
+	}
+}
+
+func TestSplitOnePage(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakePDF(t, dir, "one.pdf", 1)
+	_, err := testutil.RunHandler(t, Split, in, "split")
+	var ue *app.UserError
+	if !errors.As(err, &ue) || ue.Msg != "This PDF has only one page" {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "one-1.pdf")); !os.IsNotExist(err) {
+		t.Error("a page file was created")
+	}
+}
+
+// mutool show does NOT fail on a password-protected PDF (it says 1 page),
+// so Split must check the PDF opens first.
+func TestSplitEncrypted(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakeEncryptedPDF(t, dir, "secret.pdf")
+	code, body := runThroughApp(t, "split", in, Split)
+	if code != 1 || body != "This PDF is password-protected" {
+		t.Errorf("code %d body %q", code, body)
+	}
+}
