@@ -198,3 +198,19 @@ func TestImagesToPDFBadPhotoNamed(t *testing.T) {
 		t.Errorf("message %q does not name the damaged photo", body)
 	}
 }
+
+func TestImagesToPDFIPhoneHEIC(t *testing.T) {
+	testutil.NeedHEIC(t)
+	need(t)
+	dir := t.TempDir()
+	heic := testutil.IPhoneHEIC(t, dir, "IMG_6736.HEIC")
+	jpg := testutil.MakeImage(t, dir, "IMG_6737.jpg", 60, 80, false)
+	title, code := sendTo(t, jpg, heic)
+	if code != 0 || title != "Done: IMG_6736.pdf (2 pages)" {
+		t.Fatalf("code %d title %q", code, title)
+	}
+	w, h := box(t, testutil.MediaBoxes(t, filepath.Join(dir, "IMG_6736.pdf"))[0])
+	if !near(w, 446.4) || !near(h, 595.2) { // 1860x2480 px: portrait, longest side 2480
+		t.Errorf("page %vx%v, want portrait 446.4x595.2", w, h)
+	}
+}
