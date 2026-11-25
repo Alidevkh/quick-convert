@@ -90,7 +90,7 @@ var groups = []group{
 	{ // video
 		exts: []string{".mov", ".mp4", ".mkv", ".avi", ".webm", ".wmv"},
 		items: []MenuItem{
-			{"mp4", "MP4"}, {"whatsapp", "MP4 (WhatsApp / any device)"},
+			{"mp4", "MP4 (full quality, for editing)"}, {"whatsapp", "MP4 (WhatsApp / any device)"},
 			{"mp3", "MP3 (audio only)"}, {"m4a", "M4A (audio only)"}, {"gif", "GIF"},
 		},
 	},
@@ -121,8 +121,12 @@ var groups = []group{
 var extras = []group{
 	{exts: []string{".jpg", ".jpeg", ".png", ".heic", ".webp"}, items: []MenuItem{{"clean", "Remove metadata"}}},
 	{exts: []string{".pdf"}, items: []MenuItem{{"shrink", "Reduce size"}, {"split", "Split into pages"}, {"extract", "Extract pages..."}}},
-	{exts: append(append([]string{}, videoExts...), audioExts...), items: []MenuItem{{"clean", "Remove metadata"}}},
+	{exts: append(append([]string{}, cleanVideoExts...), audioExts...), items: []MenuItem{{"clean", "Remove metadata"}}},
 }
+
+// cleanVideoExts are the videos offered "Remove metadata". MKV is left out:
+// its attached fonts and track names would be lost.
+var cleanVideoExts = []string{".mov", ".mp4", ".avi", ".webm", ".wmv"}
 
 // codeMenuItems creates the ".py", ".m", ... entries and registers a
 // "code-py", "code-m", ... action for each one.

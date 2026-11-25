@@ -19,17 +19,111 @@ func contains(args []string, want string) bool {
 	return strings.Contains(strings.Join(args, " "), want)
 }
 
-func TestMP4ArgsRemuxHEVC(t *testing.T) {
-	args := MP4Args("in.mov", "out.mp4", Info{VideoCodec: "hevc", AudioCodec: "aac", HasVideo: true, HasAudio: true})
-	if !contains(args, "-c copy") || !contains(args, "-tag:v hvc1") || contains(args, "libx264") {
-		t.Errorf("args = %v", args)
+// iPhone video: every picture and sound track MP4 can hold is copied as it
+// is; the timed-location data track (which MP4 can't hold) is skipped.
+func TestMP4ArgsCopiesIPhoneVideo(t *testing.T) {
+	i := Info{HasVideo: true, HasAudio: true, VideoCodec: "hevc", AudioCodec: "aac", Streams: []Stream{
+		{Index: 0, Type: "video", Codec: "hevc"},
+		{Index: 1, Type: "audio", Codec: "aac"},
+		{Index: 2, Type: "audio", Codec: "aac"},
+		{Index: 3, Type: "data", Codec: "none"},
+	}}
+	args := strings.Join(MP4Args("in.mov", "out.mp4", i), " ")
+	for _, want := range []string{"-map 0:0 -map 0:1 -map 0:2 ", "-c:0 copy", "-c:1 copy", "-c:2 copy",
+		"-tag:0 hvc1", "-map_metadata 0", "use_metadata_tags", "-strict unofficial"} {
+		if !strings.Contains(args, want) {
+			t.Errorf("missing %q in %s", want, args)
+		}
+	}
+	if strings.Contains(args, "0:3") || strings.Contains(args, "libx264") {
+		t.Errorf("args = %s", args)
 	}
 }
 
+// Sound MP4 can't hold is converted (AAC, or ALAC when the sound is
+// lossless); a track ffmpeg doesn't know (e.g. spatial audio) is skipped.
+func TestMP4ArgsAudioTracks(t *testing.T) {
+	i := Info{HasVideo: true, HasAudio: true, VideoCodec: "h264", AudioCodec: "pcm_s16le", Streams: []Stream{
+		{Index: 0, Type: "video", Codec: "h264"},
+		{Index: 1, Type: "audio", Codec: "pcm_s16le"},
+		{Index: 2, Type: "audio", Codec: "none"},
+		{Index: 3, Type: "audio", Codec: "opus"},
+		{Index: 4, Type: "subtitle", Codec: "subrip"},
+		{Index: 5, Type: "subtitle", Codec: "hdmv_pgs_subtitle"},
+	}}
+	args := strings.Join(MP4Args("in.mkv", "out.mp4", i), " ")
+	for _, want := range []string{"-map 0:0 -map 0:1 -map 0:3 -map 0:4 ", "-c:0 copy", "-c:1 alac", "-c:2 aac -b:2 256k", "-c:3 mov_text"} {
+		if !strings.Contains(args, want) {
+			t.Errorf("missing %q in %s", want, args)
+		}
+	}
+	if strings.Contains(args, "0:2 ") || strings.Contains(args, "0:5") {
+		t.Errorf("args = %s", args)
+	}
+}
+
+// Video MP4 can't hold is re-compressed at near-original quality.
 func TestMP4ArgsReencodeVP9(t *testing.T) {
-	args := MP4Args("in.webm", "out.mp4", Info{VideoCodec: "vp9", AudioCodec: "opus", HasVideo: true, HasAudio: true})
-	if !contains(args, "libx264") || !contains(args, "192k") || contains(args, "-c copy") {
-		t.Errorf("args = %v", args)
+	i := Info{HasVideo: true, HasAudio: true, VideoCodec: "vp9", AudioCodec: "opus", Streams: []Stream{
+		{Index: 0, Type: "video", Codec: "vp9"},
+		{Index: 1, Type: "audio", Codec: "opus"},
+	}}
+	args := strings.Join(MP4Args("in.webm", "out.mp4", i), " ")
+	if !strings.Contains(args, "-c:0 libx264") || !strings.Contains(args, "-crf:0 18") || !strings.Contains(args, "-c:1 aac") {
+		t.Errorf("args = %s", args)
+	}
+}
+
+// A real iPhone-style video: the picture is bit-for-bit the same, and the
+// HDR colours, rotation, second sound track, location, date and phone model
+// are all kept (for editing).
+func TestVideoForEditingKeepsEverything(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	flat := filepath.Join(t.TempDir(), "flat.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=30:s=640x360",
+		"-f", "lavfi", "-i", "sine=d=1", "-f", "lavfi", "-i", "sine=d=1:frequency=880",
+		"-map", "0", "-map", "1", "-map", "2", "-c:v", "libx265", "-x265-params", "log-level=error",
+		"-pix_fmt", "yuv420p10le", "-color_primaries", "bt2020", "-color_trc", "arib-std-b67", "-colorspace", "bt2020nc",
+		"-c:a", "aac", "-metadata", "com.apple.quicktime.location.ISO6709=+25.2048+055.2708/",
+		"-metadata", "com.apple.quicktime.model=iPhone 15 Pro", "-metadata", "creation_time=2026-01-01T06:00:00Z",
+		"-movflags", "use_metadata_tags", flat)
+	in := filepath.Join(dir, "IMG_0001.MOV")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-display_rotation", "90", "-i", flat, "-map", "0", "-c", "copy",
+		"-map_metadata", "0", "-movflags", "use_metadata_tags", in)
+
+	r, err := convert(t, Video, in, "mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := r.Outputs[0]
+	if out != filepath.Join(dir, "IMG_0001.mp4") {
+		t.Fatalf("output %v", r.Outputs)
+	}
+	hash := func(f string) string {
+		return testutil.Run(t, "ffmpeg", "-v", "error", "-i", f, "-map", "0:v:0", "-c", "copy", "-f", "hash", "-hash", "md5", "-")
+	}
+	if hash(in) != hash(out) {
+		t.Error("the picture was re-compressed")
+	}
+	streams := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries",
+		"stream=codec_type,codec_tag_string,color_transfer:stream_side_data=rotation", "-of", "compact", out)
+	for _, want := range []string{"hvc1", "arib-std-b67", "rotation=90"} {
+		if !strings.Contains(streams, want) {
+			t.Errorf("missing %q: %s", want, streams)
+		}
+	}
+	if n := strings.Count(streams, "codec_type=audio"); n != 2 {
+		t.Errorf("%d sound tracks, want 2", n)
+	}
+	tags := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "format_tags", "-of", "compact", out)
+	for _, want := range []string{"+25.2048+055.2708", "iPhone 15 Pro", "2026-01-01T06:00:00"} {
+		if !strings.Contains(tags, want) {
+			t.Errorf("missing %q: %s", want, tags)
+		}
+	}
+	if strings.Contains(tags, "major_brand=qt") {
+		t.Errorf("the QuickTime brand was copied as a tag: %s", tags)
 	}
 }
 
@@ -73,8 +167,8 @@ func TestVideoWithSubtitleTrack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, has := testutil.Codecs(t, r.Outputs[0])["subtitle"]; has {
-		t.Error("subtitle track should be dropped")
+	if c := testutil.Codecs(t, r.Outputs[0]); c["subtitle"] != "mov_text" {
+		t.Errorf("subtitles should be kept: %v", c)
 	}
 }
 
@@ -189,15 +283,6 @@ func TestUnicodeFolderEndToEnd(t *testing.T) {
 	}
 	if r.Outputs[0] != filepath.Join(dir, "رحلة صيف.mp3") {
 		t.Errorf("output %v", r.Outputs)
-	}
-}
-
-// iPhones can add extra audio tracks (e.g. spatial audio) in formats MP4
-// may not accept, so only the main audio track is kept.
-func TestMP4ArgsKeepsOnlyFirstAudioTrack(t *testing.T) {
-	args := MP4Args("in.mov", "out.mp4", Info{VideoCodec: "hevc", AudioCodec: "aac", HasVideo: true, HasAudio: true})
-	if !contains(args, "-map 0:a:0?") || contains(args, "-map 0:a? ") {
-		t.Errorf("args = %v", args)
 	}
 }
 
@@ -539,13 +624,51 @@ func TestWhatsAppDropsMetadata(t *testing.T) {
 	}
 }
 
-// OGG/Opus covers can't be copied back into OGG by ffmpeg: map sound only.
-func TestCleanArgsOggSoundOnly(t *testing.T) {
-	args := strings.Join(CleanArgs("in.ogg", "out.ogg"), " ")
-	if strings.Contains(args, "0:v") || !strings.Contains(args, "-map 0:a") {
-		t.Errorf("args = %s", args)
+// OGG/Opus covers are kept (ffmpeg can only write them back as a tag).
+func TestCleanOggKeepsCover(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	for _, f := range []struct{ name, codec string }{{"song.ogg", "libvorbis"}, {"voice.opus", "libopus"}} {
+		t.Run(f.name, func(t *testing.T) {
+			dir := t.TempDir()
+			src := t.TempDir()
+			cover := filepath.Join(src, "cover.png")
+			testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=s=64x48:d=1", "-frames:v", "1", cover)
+			data, _ := os.ReadFile(cover)
+			meta := filepath.Join(src, "meta.txt")
+			os.WriteFile(meta, CoverMetadata(data, "png", 64, 48), 0o644)
+			in := filepath.Join(dir, f.name)
+			testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=d=1:sample_rate=48000",
+				"-f", "ffmetadata", "-i", meta, "-map", "0:a", "-map_metadata", "1", "-metadata", "artist=Someone",
+				"-c:a", f.codec, in)
+			if c := testutil.Codecs(t, in); c["video"] != "png" {
+				t.Fatalf("test file has no cover: %v", c)
+			}
+
+			r, err := convert(t, Clean, in, "clean")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tags := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "format_tags:stream_tags", "-of", "compact", r.Outputs[0]); strings.Contains(tags, "Someone") {
+				t.Errorf("tags still present: %s", tags)
+			}
+			got := testutil.Run(t, "ffmpeg", "-v", "error", "-i", r.Outputs[0], "-map", "0:v:0", "-c", "copy", "-f", "image2pipe", "-")
+			if got != string(data) {
+				t.Error("cover lost or changed")
+			}
+		})
 	}
-	if !strings.Contains(strings.Join(CleanArgs("in.mov", "out.mov"), " "), "0:v?") {
-		t.Error("videos must keep the picture")
+}
+
+func TestCleanOggWithoutCover(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	in := filepath.Join(t.TempDir(), "song.ogg")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=d=1", "-c:a", "libvorbis",
+		"-metadata", "artist=Someone", in)
+	r, err := convert(t, Clean, in, "clean")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tags := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "format_tags:stream_tags", "-of", "compact", r.Outputs[0]); strings.Contains(tags, "Someone") {
+		t.Errorf("tags still present: %s", tags)
 	}
 }

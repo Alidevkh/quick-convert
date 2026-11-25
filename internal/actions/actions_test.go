@@ -26,7 +26,7 @@ func TestSubmenuVideo(t *testing.T) {
 	if got := ids(mov); !reflect.DeepEqual(got, []string{"mp4", "whatsapp", "mp3", "m4a", "gif"}) {
 		t.Errorf("ids = %v", got)
 	}
-	if got := labels(mov); !reflect.DeepEqual(got, []string{"MP4", "MP4 (WhatsApp / any device)", "MP3 (audio only)", "M4A (audio only)", "GIF"}) {
+	if got := labels(mov); !reflect.DeepEqual(got, []string{"MP4 (full quality, for editing)", "MP4 (WhatsApp / any device)", "MP3 (audio only)", "M4A (audio only)", "GIF"}) {
 		t.Errorf("labels = %v", got)
 	}
 	if got := ids(Submenu(".mp4")); !reflect.DeepEqual(got, []string{"whatsapp", "mp3", "m4a", "gif"}) {
@@ -70,6 +70,10 @@ func TestExtras(t *testing.T) {
 		if got := Extras(ext); !reflect.DeepEqual(got, []MenuItem{{"clean", "Remove metadata"}}) {
 			t.Errorf("%s = %v", ext, got)
 		}
+	}
+	// MKV files often carry fonts and track names that matter; leave them alone.
+	if got := Extras(".mkv"); len(got) != 0 {
+		t.Errorf(".mkv = %v", got)
 	}
 }
 

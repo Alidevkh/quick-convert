@@ -6,8 +6,12 @@
 package media
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -27,6 +31,17 @@ type Info struct {
 	ColorTransfer string
 	// FrameRate of the video in frames per second (0 if unknown).
 	FrameRate float64
+	// Streams lists every stream in the file, in order.
+	Streams []Stream
+}
+
+// Stream is one track inside a media file.
+type Stream struct {
+	Index         int    // position in the file (ffmpeg's "0:<Index>")
+	Type          string // "video", "audio", "subtitle" or "data"
+	Codec         string // e.g. "hevc", "aac"; "none" if ffmpeg doesn't know it
+	Cover         bool   // an album-cover picture, not a real video
+	Width, Height int    // pictures only
 }
 
 // HDR reports whether the video uses high dynamic range colours, which
@@ -48,6 +63,9 @@ func Probe(ctx context.Context, eng *engines.Set, dir, in string) (Info, error) 
 	}
 	var data struct {
 		Streams []struct {
+			Index         int    `json:"index"`
+			Width         int    `json:"width"`
+			Height        int    `json:"height"`
 			CodecType     string `json:"codec_type"`
 			CodecName     string `json:"codec_name"`
 			ColorTransfer string `json:"color_transfer"`
@@ -62,6 +80,8 @@ func Probe(ctx context.Context, eng *engines.Set, dir, in string) (Info, error) 
 	}
 	var info Info
 	for _, s := range data.Streams {
+		info.Streams = append(info.Streams, Stream{Index: s.Index, Type: s.CodecType, Codec: s.CodecName,
+			Cover: s.Disposition.AttachedPic == 1, Width: s.Width, Height: s.Height})
 		switch {
 		case s.CodecType == "video" && s.Disposition.AttachedPic == 0 && !info.HasVideo:
 			info.HasVideo, info.VideoCodec, info.ColorTransfer = true, s.CodecName, s.ColorTransfer
@@ -94,34 +114,69 @@ func start(in string) []string {
 	}
 }
 
-// MP4Args builds the ffmpeg command for any video → MP4.
+// MP4Args builds the ffmpeg command for any video → MP4, keeping
+// everything, for editing.
 //
-// If the video and audio are already in formats MP4 supports, they are
-// copied as they are ("remux"): this takes seconds, even for big files,
-// and loses no quality. Otherwise the video is re-encoded to H.264.
+// Every picture, sound and subtitle track that MP4 can hold is copied as it
+// is ("remux"): this takes seconds, even for big files, and loses nothing —
+// HDR colours, rotation, every sound track, and the location, date and
+// phone model are kept. Only a track MP4 can't hold is converted, at
+// near-original quality. Tracks that can't be converted at all (iPhone
+// timed-location data, spatial audio unknown to ffmpeg) are left out.
 func MP4Args(in, out string, i Info) []string {
-	args := append(start(in),
-		"-map", "0:v:0", // take the first video stream...
-		"-map", "0:a:0?", // ...and the main audio track, if any (drops extra tracks, subtitles, data)
-		"-map_metadata", "0", // keep date/title information
-	)
-	videoOK := i.VideoCodec == "h264" || i.VideoCodec == "hevc"
-	audioOK := !i.HasAudio || i.AudioCodec == "aac" || i.AudioCodec == "mp3"
-	if videoOK && audioOK {
-		args = append(args, "-c", "copy") // copy streams without re-encoding
-		if i.VideoCodec == "hevc" {
-			args = append(args, "-tag:v", "hvc1") // label HEVC so Windows and phones play it
+	args := start(in)
+	var codecs []string
+	n := 0 // number of the next stream in the result
+	add := func(s Stream, opts ...string) {
+		args = append(args, "-map", "0:"+strconv.Itoa(s.Index))
+		num := strconv.Itoa(n)
+		for k := 0; k < len(opts); k += 2 { // e.g. "-c", "copy" becomes "-c:0", "copy"
+			codecs = append(codecs, opts[k]+":"+num, opts[k+1])
 		}
-	} else {
-		args = append(args,
-			"-c:v", "libx264", // H.264 video, plays everywhere
-			"-preset", "medium", // balance of speed and file size
-			"-crf", "20", // quality (lower = better; 20 looks like the original)
-			"-pix_fmt", "yuv420p", // colour format all players support
-			"-c:a", "aac", "-b:a", "192k", // AAC audio at 192 kbps
-		)
+		n++
 	}
-	return append(args, "-movflags", "+faststart", out) // lets the video start playing before fully loaded
+	video := false
+	for _, s := range i.Streams {
+		switch {
+		case s.Type == "video" && !s.Cover && !video: // the picture
+			video = true
+			switch s.Codec {
+			case "hevc":
+				add(s, "-c", "copy", "-tag", "hvc1") // label HEVC so Windows, Apple and editors accept it
+			case "h264":
+				add(s, "-c", "copy")
+			default:
+				add(s,
+					"-c", "libx264", // H.264 video, accepted by every editor
+					"-preset", "medium", // balance of speed and file size
+					"-crf", "18", // quality (lower = better; 18 looks the same as the original)
+					"-pix_fmt", "yuv420p") // colour format all players support
+			}
+		case s.Type == "audio" && !s.Cover:
+			switch {
+			case s.Codec == "none" || s.Codec == "":
+				// ffmpeg doesn't know it (e.g. iPhone spatial audio): leave it out
+			case s.Codec == "aac" || s.Codec == "mp3" || s.Codec == "alac" || s.Codec == "ac3" || s.Codec == "eac3":
+				add(s, "-c", "copy")
+			case s.Codec == "flac" || strings.HasPrefix(s.Codec, "pcm_"):
+				add(s, "-c", "alac") // lossless sound stays lossless
+			default:
+				add(s, "-c", "aac", "-b", "256k") // AAC at 256 kbps
+			}
+		case s.Type == "subtitle":
+			switch s.Codec {
+			case "mov_text", "subrip", "ass", "ssa", "webvtt", "text":
+				add(s, "-c", "mov_text") // MP4's own subtitle format
+			} // picture subtitles (DVD, Blu-ray) can't go in MP4
+		}
+	}
+	args = append(args, codecs...)
+	return append(args,
+		"-map_metadata", "0", // keep location, date, phone model...
+		"-metadata", "major_brand=", "-metadata", "minor_version=", "-metadata", "compatible_brands=", // ...but not the old file-type labels
+		"-strict", "unofficial", // also keep Dolby Vision (iPhone HDR) information
+		"-movflags", "+faststart+use_metadata_tags", // start playing before fully loaded; keep Apple's metadata
+		out)
 }
 
 // audioCodecs says how each audio format is encoded.
@@ -333,6 +388,12 @@ func Readable(ctx context.Context, eng *engines.Set, dir, in string) (name strin
 func Clean(ctx context.Context, j app.Job) (app.Result, error) {
 	out := "out" + j.Ext
 	args := CleanArgs(j.Work.In, out)
+	if isOgg(j.Ext) {
+		var err error
+		if args, err = oggCleanArgs(ctx, j, out); err != nil {
+			return app.Result{}, err
+		}
+	}
 	if _, err := j.Eng.Run(ctx, j.Work.Dir, "ffmpeg", args...); err != nil {
 		return app.Result{}, err
 	}
@@ -343,25 +404,83 @@ func Clean(ctx context.Context, j app.Job) (app.Result, error) {
 	return app.Result{Outputs: []string{saved}}, nil
 }
 
-// CleanArgs builds the ffmpeg command for Clean.
+// CleanArgs builds the ffmpeg command for Clean (all types except OGG).
 func CleanArgs(in, out string) []string {
-	args := start(in)
-	switch strings.ToLower(filepath.Ext(out)) {
-	case ".ogg", ".opus":
-		// ffmpeg can't write a cover picture back into OGG: sound only.
-		args = append(args, "-map", "0:a")
-	default:
-		args = append(args,
-			"-map", "0:v?", // the picture (or album cover)...
-			"-map", "0:a?", // ...the sound...
-			"-map", "0:s?", // ...and subtitles, but no data tracks
-		)
-	}
-	return append(args,
+	return append(start(in),
+		"-map", "0:v?", // the picture (or album cover)...
+		"-map", "0:a?", // ...the sound...
+		"-map", "0:s?", // ...and subtitles, but no data tracks
 		"-map_metadata", "-1", // drop all metadata
 		"-map_chapters", "-1", // and chapter titles
 		"-c", "copy", // copy picture and sound as they are
 		out)
+}
+
+func isOgg(ext string) bool {
+	ext = strings.ToLower(ext)
+	return ext == ".ogg" || ext == ".opus"
+}
+
+// oggCleanArgs cleans an OGG/Opus file. ffmpeg can't copy a cover picture
+// into OGG as a picture, only as a tag, so the cover is taken out first and
+// written back as that tag (in a small metadata file, since a picture is
+// too long for a command line).
+func oggCleanArgs(ctx context.Context, j app.Job, out string) ([]string, error) {
+	args := start(j.Work.In)
+	info, err := Probe(ctx, j.Eng, j.Work.Dir, j.Work.In)
+	if err != nil {
+		return nil, err
+	}
+	cover := false
+	for _, s := range info.Streams {
+		if !s.Cover {
+			continue
+		}
+		if _, err := j.Eng.Run(ctx, j.Work.Dir, "ffmpeg", append(start(j.Work.In),
+			"-map", "0:"+strconv.Itoa(s.Index), "-c", "copy", "-f", "image2", "cover.bin")...); err != nil {
+			return nil, err
+		}
+		data, err := os.ReadFile(filepath.Join(j.Work.Dir, "cover.bin"))
+		if err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(filepath.Join(j.Work.Dir, "cover.txt"), CoverMetadata(data, s.Codec, s.Width, s.Height), 0o644); err != nil {
+			return nil, err
+		}
+		args = append(args, "-f", "ffmetadata", "-i", "cover.txt") // input 1: the cover tag
+		cover = true
+		break
+	}
+	args = append(args, "-map", "0:a", "-map_metadata", "-1") // the sound, without its metadata...
+	if cover {
+		args = append(args, "-map_metadata:s:a:0", "1") // ...but with the cover tag
+	}
+	return append(args, "-map_chapters", "-1", "-c", "copy", out), nil
+}
+
+// CoverMetadata makes an ffmpeg metadata file holding a cover picture as
+// OGG stores it: a METADATA_BLOCK_PICTURE tag (a FLAC picture block,
+// base64-encoded).
+func CoverMetadata(data []byte, codec string, width, height int) []byte {
+	mime := "image/" + codec
+	if codec == "mjpeg" {
+		mime = "image/jpeg"
+	}
+	var b bytes.Buffer
+	u32 := func(v int) { binary.Write(&b, binary.BigEndian, uint32(v)) }
+	u32(3) // picture type: front cover
+	u32(len(mime))
+	b.WriteString(mime)
+	u32(0) // no description
+	u32(width)
+	u32(height)
+	u32(24) // colour depth
+	u32(0)  // not a palette picture
+	u32(len(data))
+	b.Write(data)
+	// In this file format "=", ";", "#" and "\" must be escaped.
+	value := strings.ReplaceAll(base64.StdEncoding.EncodeToString(b.Bytes()), "=", `\=`)
+	return []byte(";FFMETADATA1\nMETADATA_BLOCK_PICTURE=" + value + "\n")
 }
 
 // Video converts a video to MP4, MP3 or GIF.

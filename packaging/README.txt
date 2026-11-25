@@ -19,8 +19,9 @@ Right-click a file. On Windows 11, click "Show more options" first
 (or hold Shift while right-clicking). Then choose:
 
   Convert to >     the formats that make sense for that file
-  Remove metadata  (photos, videos, audio) removes GPS location, dates, camera
-                   and titles; saves "photo (clean).jpg", "trip (clean).mov"...
+  Remove metadata  (photos, videos except MKV, audio) removes GPS location,
+                   dates, camera and titles; saves "photo (clean).jpg",
+                   "trip (clean).mov"... Music cover pictures are kept.
   Reduce size      (PDFs) saves "report (small).pdf"
   Split into pages (PDFs) every page as its own PDF: report-1.pdf, report-2.pdf...
   Extract pages... (PDFs) asks which pages (e.g. 1-3, 5) and saves them, in that
@@ -46,8 +47,14 @@ the same time; the rest wait their turn.
 WHAT EACH OPTION DOES
 ---------------------
 Videos (.mov .mp4 .mkv .avi .webm .wmv)
-  MP4               If the video is already MP4-compatible (most phone videos),
-                    it is repackaged in seconds without losing quality.
+  MP4 (full quality, for editing)
+                    For editing programs (Premiere, CapCut, DaVinci...).
+                    iPhone and most phone videos are repackaged in seconds,
+                    exactly the same picture and sound: nothing is
+                    re-compressed, and HDR colours, every sound track, the
+                    location, date and phone model are all kept.
+                    Videos MP4 can't hold as they are are re-compressed at a
+                    quality that looks the same as the original.
   MP4 (WhatsApp / any device)
                     Plays on every phone, computer and browser, ready to send
                     on WhatsApp: H.264, at most 1080p, iPhone HDR colours
