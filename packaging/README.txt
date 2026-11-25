@@ -44,11 +44,21 @@ WHAT EACH OPTION DOES
 Videos (.mov .mp4 .mkv .avi .webm .wmv)
   MP4               If the video is already MP4-compatible (most phone videos),
                     it is repackaged in seconds without losing quality.
+  MP4 (WhatsApp / any device)
+                    Plays on every phone, computer and browser, ready to send
+                    on WhatsApp: H.264, at most 1080p, iPhone HDR colours
+                    converted so they look right everywhere. Slower than MP4
+                    (the video is re-compressed). Saved as "trip (WhatsApp).mp4".
   MP3 (audio only)  The sound track, 192 kbps.
+  M4A (audio only)  The sound track as AAC (iPhone sound is copied, no loss).
   GIF               Animated, 15 frames per second, at most 480 pixels wide.
 
-Audio (.wav .m4a .flac .ogg .aac .wma)
-  MP3, WAV
+Audio (.mp3 .wav .m4a .flac .ogg .aac .wma .opus)
+  MP3               192 kbps, plays everywhere
+  M4A               AAC 192 kbps (Apple / iPhone)
+  WAV               uncompressed
+  FLAC              lossless, about half the size of WAV
+  OGG               Vorbis, about 192 kbps
 
 Pictures (.png .jpg .jpeg .webp .bmp .heic)
   PNG, JPG, WEBP    Phone photos come out the right way up.

@@ -22,6 +22,15 @@ type Info struct {
 	AudioCodec string // e.g. "aac", "mp3", "opus"; "" if none
 	HasVideo   bool
 	HasAudio   bool
+	// ColorTransfer of the video, e.g. "bt709" (normal), "smpte2084"
+	// (HDR10 / PQ) or "arib-std-b67" (HLG, used by iPhone HDR video).
+	ColorTransfer string
+}
+
+// HDR reports whether the video uses high dynamic range colours, which
+// look washed out or dark on normal screens unless they are converted.
+func (i Info) HDR() bool {
+	return i.ColorTransfer == "smpte2084" || i.ColorTransfer == "arib-std-b67"
 }
 
 // Probe asks ffprobe which video and audio streams a file has.
@@ -37,9 +46,10 @@ func Probe(ctx context.Context, eng *engines.Set, dir, in string) (Info, error) 
 	}
 	var data struct {
 		Streams []struct {
-			CodecType   string `json:"codec_type"`
-			CodecName   string `json:"codec_name"`
-			Disposition struct {
+			CodecType     string `json:"codec_type"`
+			CodecName     string `json:"codec_name"`
+			ColorTransfer string `json:"color_transfer"`
+			Disposition   struct {
 				AttachedPic int `json:"attached_pic"`
 			} `json:"disposition"`
 		} `json:"streams"`
@@ -51,7 +61,7 @@ func Probe(ctx context.Context, eng *engines.Set, dir, in string) (Info, error) 
 	for _, s := range data.Streams {
 		switch {
 		case s.CodecType == "video" && s.Disposition.AttachedPic == 0 && !info.HasVideo:
-			info.HasVideo, info.VideoCodec = true, s.CodecName
+			info.HasVideo, info.VideoCodec, info.ColorTransfer = true, s.CodecName, s.ColorTransfer
 		case s.CodecType == "audio" && !info.HasAudio:
 			info.HasAudio, info.AudioCodec = true, s.CodecName
 		}
@@ -127,6 +137,44 @@ func MP3Args(in, out string) []string { return AudioArgs(in, out, "mp3", Info{})
 
 // WAVArgs extracts the first audio stream as an uncompressed WAV.
 func WAVArgs(in, out string) []string { return AudioArgs(in, out, "wav", Info{}) }
+
+// WhatsAppArgs makes an MP4 that plays on any phone, computer or browser
+// and is ready for WhatsApp: H.264 video in standard 8-bit colours, AAC
+// stereo sound, at most 1080p (the short side), same frame rate.
+// HDR video is tone-mapped to normal colours so it looks right everywhere.
+func WhatsAppArgs(in, out string, i Info) []string {
+	args := append(start(in),
+		"-map", "0:v:0", // the video...
+		"-map", "0:a:0?", // ...and the main sound track, if there is one
+		"-map_metadata", "0", // keep date/location information
+	)
+	filters := []string{
+		// Short side at most 1080 px (4K becomes 1080p; portrait stays
+		// portrait). Sizes are kept even, as H.264 requires.
+		"scale='if(gt(iw,ih),-2,min(1080,trunc(iw/2)*2))':'if(gt(iw,ih),min(1080,trunc(ih/2)*2),-2)'",
+	}
+	if i.HDR() {
+		filters = append(filters,
+			"zscale=t=linear:npl=100", // HDR signal to real light levels
+			"format=gbrpf32le",        // high-precision colours for the maths
+			"zscale=p=bt709",          // HDR colour range to normal (BT.709)
+			// Squeeze bright highlights into the normal range. "mobius" keeps
+			// normal brightness as it is, so HDR "reference white" stays white
+			// (checked: hable made iPhone HLG video look grey/dark).
+			"tonemap=tonemap=mobius:desat=0",
+			"zscale=t=bt709:m=bt709:r=tv", // back to a normal video signal
+		)
+	}
+	filters = append(filters, "format=yuv420p") // 8-bit 4:2:0: plays on every device
+	return append(args,
+		"-vf", strings.Join(filters, ","),
+		"-c:v", "libx264", "-profile:v", "high", // H.264, the most compatible video format
+		"-preset", "medium", "-crf", "23", // good quality, reasonable size
+		"-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", // label as normal colours
+		"-c:a", "aac", "-b:a", "128k", "-ac", "2", // AAC stereo sound at 128 kbps
+		"-movflags", "+faststart", // starts playing before fully downloaded
+		out)
+}
 
 // GIFArgs makes an animated GIF: 15 frames per second, at most 480 pixels
 // wide, using a colour palette made from the video itself so it looks good.
@@ -268,6 +316,11 @@ func Video(ctx context.Context, j app.Job) (app.Result, error) {
 			return app.Result{}, &app.UserError{Msg: "This file has no video picture"}
 		}
 		args = MP4Args(j.Work.In, out, info)
+	case "whatsapp":
+		if !info.HasVideo {
+			return app.Result{}, &app.UserError{Msg: "This file has no video picture"}
+		}
+		args = WhatsAppArgs(j.Work.In, out, info)
 	case "mp3", "m4a": // the sound only
 		if !info.HasAudio {
 			return app.Result{}, &app.UserError{Msg: "This video has no audio"}

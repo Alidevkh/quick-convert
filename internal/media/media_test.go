@@ -290,3 +290,118 @@ func TestVideoToM4ACopiesAAC(t *testing.T) {
 		t.Error("AAC sound should be copied, not re-encoded")
 	}
 }
+
+// lumaOfFirstFrame returns the average brightness (0-255) of a video's first frame.
+func lumaOfFirstFrame(t *testing.T, path string) float64 {
+	t.Helper()
+	raw, err := exec.Command("ffmpeg", "-v", "error", "-i", path, "-frames:v", "1",
+		"-f", "rawvideo", "-pix_fmt", "gray", "-").Output()
+	if err != nil || len(raw) == 0 {
+		t.Fatalf("decode: %v", err)
+	}
+	sum := 0
+	for _, b := range raw {
+		sum += int(b)
+	}
+	return float64(sum) / float64(len(raw))
+}
+
+func streamField(t *testing.T, path, field string) string {
+	t.Helper()
+	return strings.TrimSpace(testutil.Run(t, "ffprobe", "-v", "error", "-select_streams", "v:0",
+		"-show_entries", "stream="+field, "-of", "csv=p=0", path))
+}
+
+func TestWhatsAppFromHEVC4K(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "clip.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=5:s=3840x2160",
+		"-f", "lavfi", "-i", "sine=d=1", "-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-shortest", in)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "clip (WhatsApp).mp4") {
+		t.Fatalf("output %v", r.Outputs)
+	}
+	c := testutil.Codecs(t, r.Outputs[0])
+	if c["video"] != "h264" || c["audio"] != "aac" {
+		t.Errorf("codecs %v", c)
+	}
+	if pf := streamField(t, r.Outputs[0], "pix_fmt"); pf != "yuv420p" {
+		t.Errorf("pix_fmt %s", pf)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 1920 || h != 1080 {
+		t.Errorf("size %dx%d, want 1920x1080", w, h)
+	}
+}
+
+// A portrait phone video (stored landscape + a rotation tag) must stay portrait.
+func TestWhatsAppPortrait(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	flat := testutil.MakeVideoSize(t, t.TempDir(), "flat.mp4", "1920x1080")
+	in := filepath.Join(dir, "portrait.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-display_rotation", "90", "-i", flat, "-c", "copy", in)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 1080 || h != 1920 {
+		t.Errorf("size %dx%d, want portrait 1080x1920", w, h)
+	}
+}
+
+// HDR (PQ) at about 100 nits is normal white-ish; a naive conversion
+// shows it as mid grey (~128). Tone mapping must keep it bright.
+func TestWhatsAppHDRToneMapped(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "hdr.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:s=320x240:d=1:r=5",
+		"-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt", "yuv420p10le",
+		"-color_primaries", "bt2020", "-color_trc", "smpte2084", "-colorspace", "bt2020nc", in)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := lumaOfFirstFrame(t, r.Outputs[0]); l < 170 {
+		t.Errorf("brightness %.0f, want > 170 (tone-mapped, not grey)", l)
+	}
+	if trc := streamField(t, r.Outputs[0], "color_transfer"); trc != "bt709" {
+		t.Errorf("color_transfer %q, want bt709", trc)
+	}
+}
+
+func TestWhatsAppNoAudio(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := testutil.MakeVideo(t, dir, "silent.mov", "libx264", false)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := testutil.Codecs(t, r.Outputs[0]); c["video"] != "h264" || c["audio"] != "" {
+		t.Errorf("codecs %v", c)
+	}
+}
+
+// iPhone HDR video uses HLG. Its "reference white" (75% signal, BT.2408)
+// must come out white on normal screens, not grey (~190).
+func TestWhatsAppHLGReferenceWhite(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "iphone-hdr.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0xBFBFBF:s=320x240:d=1:r=5",
+		"-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt", "yuv420p10le",
+		"-color_primaries", "bt2020", "-color_trc", "arib-std-b67", "-colorspace", "bt2020nc", in)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := lumaOfFirstFrame(t, r.Outputs[0]); l < 220 {
+		t.Errorf("reference white came out %.0f, want > 220", l)
+	}
+}
