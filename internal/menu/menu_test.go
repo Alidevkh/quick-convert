@@ -134,3 +134,38 @@ func TestUninstallLeavesFolderBeforeDeleting(t *testing.T) {
 		t.Error("uninstall.cmd must leave its own folder (cd to TEMP) before rmdir")
 	}
 }
+
+func TestInstallCreatesSendToShortcuts(t *testing.T) {
+	s := InstallScript()
+	for _, want := range []string{
+		`'\Images to PDF.lnk'); $s.TargetPath=$env:DEST+'\quickconvert.exe'; $s.Arguments='imgpdf'; $s.Save()`,
+		`'\Merge PDFs.lnk'); $s.TargetPath=$env:DEST+'\quickconvert.exe'; $s.Arguments='merge'; $s.Save()`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing:\n%s", want)
+		}
+	}
+	if strings.Index(s, "Images to PDF.lnk") > strings.Index(s, "echo QuickConvert installed.") {
+		t.Error("shortcuts must be created before the 'installed' message")
+	}
+}
+
+func TestUninstallRemovesSendToShortcuts(t *testing.T) {
+	s := UninstallScript()
+	for _, want := range []string{
+		`del "%APPDATA%\Microsoft\Windows\SendTo\Images to PDF.lnk" 2>nul`,
+		`del "%APPDATA%\Microsoft\Windows\SendTo\Merge PDFs.lnk" 2>nul`,
+	} {
+		i := strings.Index(s, want)
+		if i < 0 || i > strings.Index(s, "rmdir") {
+			t.Errorf("missing (or after rmdir):\n%s", want)
+		}
+	}
+}
+
+func TestInstallJpgHasPDFEntry(t *testing.T) {
+	want := root + `.jpg\shell\QuickConvert\shell\03pdf\command" /ve /d "\"%DEST%\quickconvert.exe\" pdf \"%%1\""`
+	if !strings.Contains(InstallScript(), want) {
+		t.Errorf("missing:\n%s", want)
+	}
+}

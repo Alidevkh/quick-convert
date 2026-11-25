@@ -7,6 +7,7 @@ import (
 
 	"quickconvert/internal/actions"
 	"quickconvert/internal/app"
+	"quickconvert/internal/imagepdf"
 	"quickconvert/internal/media"
 	"quickconvert/internal/pdf"
 	"quickconvert/internal/pdfmd"
@@ -25,6 +26,10 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 		return photo.Clean
 	case a.ID == "shrink":
 		return pdf.Shrink
+	case a.ID == "pdf" || a.ID == "imgpdf": // photo(s) to PDF
+		return imagepdf.Convert
+	case a.ID == "merge": // Send to → Merge PDFs
+		return pdf.Merge
 	case a.ID == "md":
 		return pdfmd.Convert
 	case ext == ".pdf": // png, jpg from a PDF

@@ -35,7 +35,7 @@ func TestSubmenuVideo(t *testing.T) {
 }
 
 func TestSubmenuImageExcludesSame(t *testing.T) {
-	if got := ids(Submenu(".jpeg")); !reflect.DeepEqual(got, []string{"png", "webp"}) {
+	if got := ids(Submenu(".jpeg")); !reflect.DeepEqual(got, []string{"png", "webp", "pdf"}) {
 		t.Errorf("got %v", got)
 	}
 }
@@ -125,5 +125,36 @@ func TestAllExts(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Errorf("missing: %v", want)
+	}
+}
+
+func TestSendToItems(t *testing.T) {
+	items := SendToItems()
+	if len(items) != 2 || items[0].ActionID != "imgpdf" || items[1].ActionID != "merge" {
+		t.Fatalf("items = %+v", items)
+	}
+	if !contains(items[0].Exts, ".heic") || items[0].NoneMsg != "No pictures selected" {
+		t.Errorf("imgpdf = %+v", items[0])
+	}
+	if items[1].NoneMsg != "No PDFs selected" || !reflect.DeepEqual(items[1].Exts, []string{".pdf"}) {
+		t.Errorf("merge = %+v", items[1])
+	}
+	if _, ok := SendToFor("mp4"); ok {
+		t.Error("mp4 is not a Send to action")
+	}
+	if a, _ := Lookup("merge"); a.Tag != " (merged)" || a.OutExt != ".pdf" {
+		t.Errorf("merge action = %+v", a)
+	}
+}
+
+func TestImageSubmenuHasPDF(t *testing.T) {
+	jpg := Submenu(".jpg")
+	if jpg[len(jpg)-1] != (MenuItem{"pdf", "PDF"}) {
+		t.Errorf(".jpg = %v", jpg)
+	}
+	for _, it := range Submenu(".pdf") {
+		if it.ActionID == "pdf" {
+			t.Error(".pdf must not offer PDF")
+		}
 	}
 }

@@ -1,5 +1,12 @@
 package app
 
+import (
+	"errors"
+	"path/filepath"
+
+	"quickconvert/internal/engines"
+)
+
 // The two kinds of messages a converter can return instead of a result.
 
 // UserError is a failure with a message meant for the user, shown in the
@@ -13,3 +20,19 @@ func (e *UserError) Error() string { return e.Msg }
 type Info struct{ Msg string }
 
 func (e *Info) Error() string { return e.Msg }
+
+// ForFile adds a file's name to an error, for jobs with several files, so
+// the user knows which one is the problem: "IMG_0042.heic: This file looks
+// damaged or isn't a real HEIC file".
+func ForFile(name string, err error) error {
+	var userErr *UserError
+	var engineErr *engines.EngineError
+	switch {
+	case errors.As(err, &userErr):
+		return &UserError{Msg: name + ": " + userErr.Msg}
+	case errors.As(err, &engineErr):
+		return &UserError{Msg: name + ": " + reason(err, filepath.Ext(name))}
+	default:
+		return err // e.g. a missing engine: not about this file
+	}
+}

@@ -49,9 +49,10 @@ func PageName(base string, n, page int, ext string) string {
 
 // Work is the temporary folder for one job.
 type Work struct {
-	Dir    string // full path of the temporary folder
-	Parent string // folder of the original file; results are saved here
-	In     string // name of the input copy inside Dir, e.g. "in.mov"
+	Dir    string   // full path of the temporary folder
+	Parent string   // folder of the original file; results are saved here
+	In     string   // name of the input copy inside Dir, e.g. "in.mov"
+	Ins    []string // all inputs inside Dir when a job has several ("in-001.jpg"...)
 
 	// link creates newname as a hard link to oldname and fails if newname
 	// already exists. It is os.Link normally; tests replace it.
@@ -85,7 +86,29 @@ func NewWork(parent string) (*Work, error) {
 // to a read-only file would remove the read-only flag from the original.
 func (w *Work) LinkInput(src string) error {
 	w.In = "in" + strings.ToLower(filepath.Ext(src))
-	dst := filepath.Join(w.Dir, w.In)
+	w.Ins = []string{w.In}
+	return linkOrCopy(src, filepath.Join(w.Dir, w.In))
+}
+
+// LinkInputs is LinkInput for several files: they become "in-001.jpg",
+// "in-002.png"... in the given order. In is set to the first one.
+func (w *Work) LinkInputs(srcs []string) error {
+	w.Ins = nil
+	for i, src := range srcs {
+		name := fmt.Sprintf("in-%03d%s", i+1, strings.ToLower(filepath.Ext(src)))
+		if err := linkOrCopy(src, filepath.Join(w.Dir, name)); err != nil {
+			return err
+		}
+		w.Ins = append(w.Ins, name)
+	}
+	if len(w.Ins) > 0 {
+		w.In = w.Ins[0]
+	}
+	return nil
+}
+
+// linkOrCopy puts src at dst: a hard link when possible, a copy otherwise.
+func linkOrCopy(src, dst string) error {
 	if info, err := os.Stat(src); err == nil && info.Mode().Perm()&0o200 != 0 {
 		if err := os.Link(src, dst); err == nil {
 			return nil

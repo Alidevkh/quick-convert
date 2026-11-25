@@ -57,7 +57,13 @@ var all = map[string]Action{
 	"txt":    {ID: "txt", Label: ".txt", Kind: Light, OutExt: ".txt"},
 	"clean":  {ID: "clean", Label: "Remove metadata", Kind: Light, Tag: " (clean)"},
 	"shrink": {ID: "shrink", Label: "Reduce size", Kind: Heavy, OutExt: ".pdf", Tag: " (small)"},
+	"pdf":    {ID: "pdf", Label: "PDF", Kind: Light, OutExt: ".pdf"},
+	"imgpdf": {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
+	"merge":  {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
 }
+
+// imageExts are the picture types QuickConvert understands.
+var imageExts = []string{".png", ".jpg", ".jpeg", ".webp", ".bmp", ".heic"}
 
 // group is a set of file types that share the same "Convert to" submenu.
 type group struct {
@@ -75,8 +81,8 @@ var groups = []group{
 		items: []MenuItem{{"mp3", "MP3"}, {"wav", "WAV"}},
 	},
 	{ // image
-		exts:  []string{".png", ".jpg", ".jpeg", ".webp", ".bmp", ".heic"},
-		items: []MenuItem{{"png", "PNG"}, {"jpg", "JPG"}, {"webp", "WEBP"}},
+		exts:  imageExts,
+		items: []MenuItem{{"png", "PNG"}, {"jpg", "JPG"}, {"webp", "WEBP"}, {"pdf", "PDF"}},
 	},
 	{ // pdf
 		exts:  []string{".pdf"},
@@ -190,4 +196,34 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// SendTo is an entry in Windows' "Send to" menu. Unlike the right-click
+// entries, Windows gives a Send to program ALL selected files in one run,
+// which is what combining many files into one needs.
+type SendTo struct {
+	ActionID string
+	Label    string   // shortcut name shown in the Send to menu
+	Exts     []string // file types it uses; other selected files are skipped
+	NoneMsg  string   // shown when none of the selected files can be used
+}
+
+var sendTo = []SendTo{
+	{ActionID: "imgpdf", Label: "Images to PDF", Exts: imageExts, NoneMsg: "No pictures selected"},
+	{ActionID: "merge", Label: "Merge PDFs", Exts: []string{".pdf"}, NoneMsg: "No PDFs selected"},
+}
+
+// SendToItems returns the Send to entries, in the order they are installed.
+func SendToItems() []SendTo {
+	return sendTo
+}
+
+// SendToFor finds the Send to entry for an action ID.
+func SendToFor(id string) (SendTo, bool) {
+	for _, s := range sendTo {
+		if s.ActionID == id {
+			return s, true
+		}
+	}
+	return SendTo{}, false
 }

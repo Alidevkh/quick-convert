@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -94,7 +95,7 @@ func MakeImage(t *testing.T, dir, name string, w, h int, transparent bool) strin
 	t.Helper()
 	path := filepath.Join(dir, name)
 	size := strconv.Itoa(w) + "x" + strconv.Itoa(h)
-	source := "color=c=red:s=" + size
+	source := "color=c=red:s=" + size + ",format=rgb24" // rgb24 keeps odd sizes exact
 	if transparent {
 		source = "color=c=black@0.0:s=" + size + ",format=rgba"
 	}
@@ -214,4 +215,17 @@ func MakeEncryptedPDF(t *testing.T, dir, name string) string {
 	Run(t, "gs", "-q", "-dBATCH", "-dNOPAUSE", "-sDEVICE=pdfwrite",
 		"-sOwnerPassword=owner", "-sUserPassword=user", "-sOutputFile="+path, plain)
 	return path
+}
+
+// MediaBoxes returns every page's size in a PDF as "left bottom right top",
+// e.g. ["0 0 144 72"], read with mutool.
+func MediaBoxes(t *testing.T, pdf string) []string {
+	t.Helper()
+	out := Run(t, "mutool", "pages", pdf)
+	re := regexp.MustCompile(`<MediaBox l="([\d.-]+)" b="([\d.-]+)" r="([\d.-]+)" t="([\d.-]+)"`)
+	var boxes []string
+	for _, m := range re.FindAllStringSubmatch(out, -1) {
+		boxes = append(boxes, strings.Join(m[1:], " "))
+	}
+	return boxes
 }

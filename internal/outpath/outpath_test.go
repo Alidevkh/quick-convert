@@ -271,3 +271,27 @@ func TestCommitUsesMoveWhenLinkUnsupported(t *testing.T) {
 		t.Error("existing file overwritten")
 	}
 }
+
+func TestLinkInputs(t *testing.T) {
+	parent := t.TempDir()
+	var srcs []string
+	for i, name := range []string{"a.JPG", "b.png", "c.jpg"} {
+		p := filepath.Join(parent, name)
+		os.WriteFile(p, []byte(fmt.Sprint(i)), 0o644)
+		srcs = append(srcs, p)
+	}
+	w, _ := NewWork(parent)
+	defer w.Cleanup()
+	if err := w.LinkInputs(srcs); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"in-001.jpg", "in-002.png", "in-003.jpg"}
+	if fmt.Sprint(w.Ins) != fmt.Sprint(want) || w.In != "in-001.jpg" {
+		t.Fatalf("Ins = %v In = %q", w.Ins, w.In)
+	}
+	for i, name := range w.Ins {
+		if mustRead(t, filepath.Join(w.Dir, name)) != fmt.Sprint(i) {
+			t.Errorf("%s has wrong content", name)
+		}
+	}
+}

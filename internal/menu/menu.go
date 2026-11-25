@@ -46,6 +46,11 @@ func InstallScript() string {
 		addEntries(&s, ext)
 	}
 	s.add("")
+	s.add(`rem 4. Add the "Send to" shortcuts (cmd cannot make shortcuts, PowerShell can).`)
+	for _, item := range actions.SendToItems() {
+		s.add(sendToShortcut(item))
+	}
+	s.add("")
 	s.add("echo QuickConvert installed.")
 	s.add("echo Right-click a file ^> Show more options ^> Convert to.")
 	s.add("pause")
@@ -64,12 +69,25 @@ func UninstallScript() string {
 	s.add("@echo off")
 	s.add("rem Removes QuickConvert's menu entries and its folder.")
 	addDeletes(&s)
+	for _, item := range actions.SendToItems() {
+		s.add(`del "%APPDATA%\Microsoft\Windows\SendTo\` + item.Label + `.lnk" 2>nul`)
+	}
 	s.add("echo QuickConvert menu entries removed.")
 	s.add(`cd /d "%TEMP%"`) // leave the folder, or Windows won't let us delete it
 	// Deleting the folder this script may be running from: "(goto)" ends
 	// the script first, so cmd doesn't complain that the file is gone.
 	s.add(`(goto) 2>nul & rmdir /S /Q "%LOCALAPPDATA%\QuickConvert"`)
 	return s.String()
+}
+
+// sendToShortcut returns the command that creates "<Label>.lnk" in the
+// user's Send to folder, running "quickconvert.exe <id>". Windows then adds
+// every selected file after <id>. DEST is read from the environment
+// ($env:DEST), which install.cmd set just before.
+func sendToShortcut(item actions.SendTo) string {
+	return `powershell -NoProfile -ExecutionPolicy Bypass -Command "` +
+		`$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('SendTo')+'\` + item.Label + `.lnk'); ` +
+		`$s.TargetPath=$env:DEST+'\quickconvert.exe'; $s.Arguments='` + item.ActionID + `'; $s.Save()"`
 }
 
 // addEntries writes the registry lines for one file extension.
