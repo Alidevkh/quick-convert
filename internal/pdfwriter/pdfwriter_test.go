@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
 
 	"quickconvert/internal/testutil"
@@ -37,17 +35,7 @@ func writePDF(t *testing.T, pages []Page) string {
 	return path
 }
 
-// mediaBoxes asks mutool for every page's MediaBox, e.g. ["0 0 144 72"].
-func mediaBoxes(t *testing.T, pdf string) []string {
-	t.Helper()
-	out := testutil.Run(t, "mutool", "pages", pdf)
-	re := regexp.MustCompile(`<MediaBox l="([\d.]+)" b="([\d.]+)" r="([\d.]+)" t="([\d.]+)"`)
-	var boxes []string
-	for _, m := range re.FindAllStringSubmatch(out, -1) {
-		boxes = append(boxes, strings.Join(m[1:], " "))
-	}
-	return boxes
-}
+var mediaBoxes = testutil.MediaBoxes
 
 func TestWriteTwoPages(t *testing.T) {
 	testutil.Need(t, "ffmpeg", "mutool")

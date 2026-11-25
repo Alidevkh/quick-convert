@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"quickconvert/internal/app"
+	"quickconvert/internal/imagepdf"
 	"quickconvert/internal/media"
 	"quickconvert/internal/pdf"
 	"quickconvert/internal/pdfmd"
@@ -67,6 +68,15 @@ func TestMarkdownRouting(t *testing.T) {
 			if handlerFor(a, ext) == nil {
 				t.Errorf("%s %s has no converter", ext, item.ActionID)
 			}
+		}
+	}
+}
+
+func TestImagesToPDFRouting(t *testing.T) {
+	for _, id := range []string{"pdf", "imgpdf"} {
+		a, _ := actions.Lookup(id)
+		if !same(handlerFor(a, ".jpg"), imagepdf.Convert) {
+			t.Errorf("%s should use imagepdf.Convert", id)
 		}
 	}
 }

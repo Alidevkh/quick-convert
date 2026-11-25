@@ -166,6 +166,37 @@ func ImageArgs(in, out, format string, orientation int) []string {
 	return append(args, out)
 }
 
+// maxPageSide is the longest side, in pixels, of a photo put on a PDF page:
+// sharp enough to read and print A4, without making the PDF huge.
+const maxPageSide = "2480"
+
+// PageArgs prepares a photo to become a PDF page: upright, at most 2480
+// pixels on its longest side (never enlarged), transparency on white,
+// saved as a JPEG.
+func PageArgs(in, out string, orientation int) []string {
+	args := []string{
+		"-hide_banner", "-nostdin", "-y",
+		"-noautorotate", // we rotate ourselves (below)
+		"-i", in,
+		"-frames:v", "1",
+		"-map_metadata", "-1",
+	}
+	var filters []string
+	if f, ok := orientationFilters[orientation]; ok {
+		filters = append(filters, f)
+	}
+	// Shrink the longest side to 2480 px if bigger; -2 keeps the proportions.
+	filters = append(filters,
+		"scale='if(gte(iw,ih),min("+maxPageSide+",iw),-2)':'if(gte(iw,ih),-2,min("+maxPageSide+",ih))'",
+		"format=rgba,split[fg][b];[b]drawbox=c=white:t=fill[bg];[bg][fg]overlay", // white background
+		"format=yuvj420p", // standard JPEG colours, as every PDF reader expects
+	)
+	return append(args,
+		"-vf", strings.Join(filters, ","),
+		"-q:v", "3", // good JPEG quality (2 = best, 31 = worst)
+		out)
+}
+
 // Orientation reads a photo's EXIF orientation with exiftool.
 // Returns 1 (upright) if there is none or it cannot be read.
 func Orientation(ctx context.Context, eng *engines.Set, dir, in string) int {
