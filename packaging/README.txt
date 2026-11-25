@@ -25,6 +25,16 @@ Right-click a file. On Windows 11, click "Show more options" first
 A Windows notification tells you when it starts and when it is done.
 Notifications show "Windows PowerShell" as the sender; that is normal.
 
+Combine several files into one, from the "Send to" menu:
+Select the files, right-click > Show more options > Send to >
+
+  Images to PDF    all selected pictures in one PDF, one picture per page,
+                   saved as "<first picture name>.pdf"
+  Merge PDFs       all selected PDFs in one, saved as "<first name> (merged).pdf"
+
+Files are put in file-name order (IMG_9 before IMG_10). To choose another
+order, rename the files, e.g. "1 cover.pdf", "2 report.pdf".
+
 You can select many files at once. At most 2 big video or PDF jobs run at
 the same time; the rest wait their turn.
 
@@ -42,6 +52,8 @@ Audio (.wav .m4a .flac .ogg .aac .wma)
 
 Pictures (.png .jpg .jpeg .webp .bmp .heic)
   PNG, JPG, WEBP    Phone photos come out the right way up.
+  PDF               A one-page PDF, the page the size of the picture.
+                    (To put several pictures in ONE PDF, use Send to > Images to PDF.)
                     Transparent areas become white in JPG.
   Remove metadata   Removes GPS location, camera, dates and other hidden
                     information. Keeps the picture quality, the rotation and

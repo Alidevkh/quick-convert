@@ -37,10 +37,21 @@
 | `internal/pdf/shrink.go` | تصغير حجم PDF (Ghostscript). |
 | `internal/pdfmd/` | PDF ← Markdown: `stext.go` يقرأ النص ومواقعه، و`markdown.go` يحدد العناوين والقوائم والجداول. |
 | `internal/platform/` | أشياء خاصة بويندوز: الإشعارات، وتحديد مهمتين ثقيلتين كحد أقصى. |
+| `internal/imagepdf/imagepdf.go` | صور ← PDF (صفحة لكل صورة)، من Send to ومن Convert to. |
+| `internal/pdfwriter/pdfwriter.go` | يكتب ملف PDF بنفسه من صور JPEG، بدون إعادة ضغطها. |
+| `internal/pdf/merge.go` | دمج عدة ملفات PDF في ملف واحد (mutool). |
+| `internal/app/natural.go` | ترتيب الملفات «الطبيعي»: IMG_9 قبل IMG_10. |
 | `internal/menu/menu.go` | يكتب `install.cmd` و`uninstall.cmd` من الجدول الرئيسي. |
 | `cmd/quickconvert/dispatch.go` | يربط كل خيار بالمحوّل المناسب له. |
 | `scripts/build.sh` | يبني ملف `QuickConvert.zip`. |
 | `scripts/fetch-engines.sh` | يحمّل البرامج المساعدة الأربعة لويندوز. |
+
+## قائمة Send to (عدة ملفات في ملف واحد)
+
+قائمة **Send to** تختلف عن قائمة الزر الأيمن العادية: ويندوز يعطي البرنامج **كل** الملفات المحددة في تشغيل واحد، مثل:
+`quickconvert.exe imgpdf "a.jpg" "b.jpg" "c.jpg"`.
+لذلك تمر عبر `app.RunMany` بدلاً من `app.Run`. هي تتجاهل الملفات غير المناسبة، وترتّب الباقي، وتضعها في المجلد المؤقت بأسماء `in-001.jpg` و`in-002.jpg` وهكذا.
+الاختصارات نفسها (`Images to PDF.lnk` و`Merge PDFs.lnk`) يصنعها `install.cmd`.
 
 ## أمثلة على تعديلات شائعة
 
