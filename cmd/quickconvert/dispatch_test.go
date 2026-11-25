@@ -80,3 +80,10 @@ func TestImagesToPDFRouting(t *testing.T) {
 		}
 	}
 }
+
+func TestMergeRouting(t *testing.T) {
+	merge, _ := actions.Lookup("merge")
+	if !same(handlerFor(merge, ".pdf"), pdf.Merge) {
+		t.Error("merge should use pdf.Merge")
+	}
+}

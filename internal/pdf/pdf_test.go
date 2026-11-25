@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -167,5 +168,97 @@ func TestShrinkEncrypted(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "secret (small).pdf")); !os.IsNotExist(err) {
 		t.Error("a (small) file was created")
+	}
+}
+
+// labelledPDF makes a PDF whose every page says "<label> page N".
+func labelledPDF(t *testing.T, dir, name, label string, pages int) string {
+	t.Helper()
+	ps := "%!PS\n<< /PageSize [595 842] >> setpagedevice\n"
+	for i := 1; i <= pages; i++ {
+		ps += "/Helvetica findfont 14 scalefont setfont 72 700 moveto (" + label + " page " + strconv.Itoa(i) + ") show showpage\n"
+	}
+	return testutil.MakePDFFromPS(t, dir, name, ps)
+}
+
+// mergeThroughApp runs "Send to → Merge PDFs" and returns exit code and
+// the last notification (title, body).
+func mergeThroughApp(t *testing.T, files ...string) (int, [2]string) {
+	t.Helper()
+	var last [2]string
+	code := app.RunMany(context.Background(), "merge", files, app.Deps{
+		Notify:     func(title, body string) { last = [2]string{title, body} },
+		Acquire:    func() func() { return func() {} },
+		Log:        &bytes.Buffer{},
+		Eng:        engines.Default(),
+		Handlers:   func(actions.Action, string) app.Handler { return Merge },
+		StartDelay: time.Hour,
+	})
+	return code, last
+}
+
+func TestMergeThree(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	a := labelledPDF(t, dir, "part 1.pdf", "First", 1)
+	b := labelledPDF(t, dir, "part 2.pdf", "Second", 2)
+	c := labelledPDF(t, dir, "part 10.pdf", "Third", 3)
+	code, last := mergeThroughApp(t, c, a, b)
+	if code != 0 || last[0] != "Done: part 1 (merged).pdf (3 files)" {
+		t.Fatalf("code %d notify %v", code, last)
+	}
+	out := filepath.Join(dir, "part 1 (merged).pdf")
+	if boxes := testutil.MediaBoxes(t, out); len(boxes) != 6 {
+		t.Fatalf("pages = %d, want 6", len(boxes))
+	}
+	text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", out)
+	first, second, third := strings.Index(text, "First page 1"), strings.Index(text, "Second page 2"), strings.Index(text, "Third page 3")
+	if first < 0 || !(first < second && second < third) {
+		t.Errorf("pages in wrong order:\n%s", text)
+	}
+}
+
+func TestMergeOnlyOne(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	a := testutil.MakePDF(t, dir, "a.pdf", 1)
+	code, last := mergeThroughApp(t, a)
+	if code != 1 || last[1] != "Select at least two PDFs to merge" {
+		t.Errorf("code %d notify %v", code, last)
+	}
+}
+
+func TestMergeEncrypted(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	a := testutil.MakePDF(t, dir, "a.pdf", 1)
+	b := testutil.MakeEncryptedPDF(t, dir, "b.pdf")
+	code, last := mergeThroughApp(t, a, b)
+	if code != 1 || last[1] != "This PDF is password-protected" {
+		t.Errorf("code %d notify %v", code, last)
+	}
+	left, _ := filepath.Glob(filepath.Join(dir, "*merged*"))
+	parts, _ := filepath.Glob(filepath.Join(dir, ".qc-*.part"))
+	if len(left)+len(parts) != 0 {
+		t.Errorf("left behind: %v %v", left, parts)
+	}
+}
+
+// PDFs that open without a password but have an "owner" password (common
+// for bank statements) must still merge.
+func TestMergeOwnerPasswordOnly(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	a := labelledPDF(t, dir, "a.pdf", "Alpha", 1)
+	plain := labelledPDF(t, t.TempDir(), "plain.pdf", "Bravo", 1)
+	b := filepath.Join(dir, "b.pdf")
+	testutil.Run(t, "gs", "-q", "-dBATCH", "-dNOPAUSE", "-sDEVICE=pdfwrite", "-sOwnerPassword=owner", "-sOutputFile="+b, plain)
+	code, last := mergeThroughApp(t, a, b)
+	if code != 0 {
+		t.Fatalf("code %d notify %v", code, last)
+	}
+	text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", filepath.Join(dir, "a (merged).pdf"))
+	if !strings.Contains(text, "Bravo page 1") {
+		t.Errorf("second PDF's text missing:\n%s", text)
 	}
 }
