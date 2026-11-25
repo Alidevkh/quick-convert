@@ -1,6 +1,6 @@
-# Images to PDF — design
+# Images to PDF and Merge PDFs — design
 
-**Date:** 2026-11-25 · **Status:** waiting for owner approval · **Size:** small feature
+**Date:** 2026-11-25 · **Status:** approved by owner (2026-11-25); additions below added the same day · **Size:** small feature
 
 ## Why
 The owner photographs paper documents with a phone and wants all the photos
@@ -57,6 +57,20 @@ combined into **one** PDF, one photo per page, quickly from Windows Explorer.
 - **Install / uninstall:** `install.cmd` creates the shortcut
   `%APPDATA%\Microsoft\Windows\SendTo\Images to PDF.lnk` (via one PowerShell
   command, since cmd cannot make shortcuts). `uninstall.cmd` deletes it.
+
+## Additions requested with the approval
+1. **Merge PDFs.** Select PDFs → Send to → **Merge PDFs**. The result is one PDF
+   holding all pages: `<first PDF name> (merged).pdf`, saved next to the first
+   PDF. Files are joined in file-name order, with numbers compared as numbers,
+   as for photos. Pages are copied as they are, using `mutool merge` (bundled),
+   so nothing is re-compressed. A password-protected PDF gives
+   "This PDF is password-protected". With only one PDF selected, the message is
+   "Select at least two PDFs to merge". *(my calls: name, order, messages)*
+2. **Image → PDF in "Convert to".** Every picture type gets a **PDF** entry in
+   its Convert to submenu. It makes a one-page PDF, `photo.pdf`, with the same
+   page rules as above. Selecting several photos and using Convert to gives one
+   PDF per photo, because Windows runs each separately. **Send to** is the way to
+   combine them.
 
 ## Not included
 Auto-cropping the paper edges, black-and-white "scanner" look, choosing the
