@@ -87,3 +87,21 @@ func TestMergeRouting(t *testing.T) {
 		t.Error("merge should use pdf.Merge")
 	}
 }
+
+func TestNewVideoAndAudioRouting(t *testing.T) {
+	for _, c := range []struct{ id, ext string }{{"whatsapp", ".mov"}, {"whatsapp", ".mp4"}, {"m4a", ".mov"}} {
+		a, _ := actions.Lookup(c.id)
+		if !same(handlerFor(a, c.ext), media.Video) {
+			t.Errorf("%s from %s should use media.Video", c.id, c.ext)
+		}
+	}
+	for _, id := range []string{"m4a", "flac", "ogg", "wav", "mp3"} {
+		a, _ := actions.Lookup(id)
+		if !same(handlerFor(a, ".wav"), media.Audio) && !(id == "wav") {
+			t.Errorf("%s from .wav should use media.Audio", id)
+		}
+		if !same(handlerFor(a, ".mp3"), media.Audio) && id != "mp3" {
+			t.Errorf("%s from .mp3 should use media.Audio", id)
+		}
+	}
+}

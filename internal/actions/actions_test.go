@@ -23,13 +23,13 @@ func labels(items []MenuItem) []string {
 
 func TestSubmenuVideo(t *testing.T) {
 	mov := Submenu(".mov")
-	if got := ids(mov); !reflect.DeepEqual(got, []string{"mp4", "mp3", "gif"}) {
+	if got := ids(mov); !reflect.DeepEqual(got, []string{"mp4", "whatsapp", "mp3", "m4a", "gif"}) {
 		t.Errorf("ids = %v", got)
 	}
-	if got := labels(mov); !reflect.DeepEqual(got, []string{"MP4", "MP3 (audio only)", "GIF"}) {
+	if got := labels(mov); !reflect.DeepEqual(got, []string{"MP4", "MP4 (WhatsApp / any device)", "MP3 (audio only)", "M4A (audio only)", "GIF"}) {
 		t.Errorf("labels = %v", got)
 	}
-	if got := ids(Submenu(".mp4")); !reflect.DeepEqual(got, []string{"mp3", "gif"}) {
+	if got := ids(Submenu(".mp4")); !reflect.DeepEqual(got, []string{"whatsapp", "mp3", "m4a", "gif"}) {
 		t.Errorf(".mp4 ids = %v", got)
 	}
 }
@@ -156,5 +156,24 @@ func TestImageSubmenuHasPDF(t *testing.T) {
 		if it.ActionID == "pdf" {
 			t.Error(".pdf must not offer PDF")
 		}
+	}
+}
+
+func TestSubmenuAudioFormats(t *testing.T) {
+	if got := ids(Submenu(".mp3")); !reflect.DeepEqual(got, []string{"m4a", "wav", "flac", "ogg"}) {
+		t.Errorf(".mp3 = %v", got)
+	}
+	if got := ids(Submenu(".wav")); !reflect.DeepEqual(got, []string{"mp3", "m4a", "flac", "ogg"}) {
+		t.Errorf(".wav = %v", got)
+	}
+	if got := ids(Submenu(".opus")); len(got) != 5 {
+		t.Errorf(".opus = %v", got)
+	}
+}
+
+func TestWhatsAppAction(t *testing.T) {
+	a, ok := Lookup("whatsapp")
+	if !ok || a.Tag != " (WhatsApp)" || a.OutExt != ".mp4" || a.Kind != Heavy {
+		t.Errorf("whatsapp = %+v", a)
 	}
 }

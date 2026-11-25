@@ -34,13 +34,22 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 		return pdfmd.Convert
 	case ext == ".pdf": // png, jpg from a PDF
 		return pdf.Render
-	case a.ID == "mp4" || a.ID == "gif" || (a.ID == "mp3" && isVideo(ext)):
+	case isVideo(ext): // mp4, WhatsApp mp4, gif, and the sound as mp3 / m4a
 		return media.Video
-	case a.ID == "mp3" || a.ID == "wav":
+	case isAudio(a.ID): // an audio file to another audio format
 		return media.Audio
 	default: // png, jpg, webp from a picture
 		return media.Image
 	}
+}
+
+// isAudio reports whether the action makes an audio file.
+func isAudio(id string) bool {
+	switch id {
+	case "mp3", "m4a", "wav", "flac", "ogg":
+		return true
+	}
+	return false
 }
 
 // isVideo reports whether ext is one of the video types (mp3 from a video

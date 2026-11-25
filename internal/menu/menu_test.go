@@ -33,8 +33,8 @@ func TestInstallCascadeKey(t *testing.T) {
 	for _, want := range []string{
 		`reg add "` + root + `.mov\shell\QuickConvert" /v MUIVerb /d "Convert to" /f >nul`,
 		`reg add "` + root + `.mov\shell\QuickConvert" /v SubCommands /d "" /f >nul`,
-		`reg add "` + root + `.mov\shell\QuickConvert\shell\02mp3" /v MUIVerb /d "MP3 (audio only)" /f >nul`,
-		`reg add "` + root + `.mov\shell\QuickConvert\shell\02mp3" /v MultiSelectModel /d "Player" /f >nul`,
+		`reg add "` + root + `.mov\shell\QuickConvert\shell\03mp3" /v MUIVerb /d "MP3 (audio only)" /f >nul`,
+		`reg add "` + root + `.mov\shell\QuickConvert\shell\03mp3" /v MultiSelectModel /d "Player" /f >nul`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing line:\n%s", want)

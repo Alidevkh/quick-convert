@@ -46,20 +46,26 @@ var codeExts = []string{
 
 // all holds every action, by ID.
 var all = map[string]Action{
-	"mp4":    {ID: "mp4", Label: "MP4", Kind: Heavy, OutExt: ".mp4"},
-	"mp3":    {ID: "mp3", Label: "MP3", Kind: Heavy, OutExt: ".mp3"},
-	"gif":    {ID: "gif", Label: "GIF", Kind: Heavy, OutExt: ".gif"},
-	"wav":    {ID: "wav", Label: "WAV", Kind: Heavy, OutExt: ".wav"},
-	"png":    {ID: "png", Label: "PNG", Kind: Light, OutExt: ".png"},
-	"jpg":    {ID: "jpg", Label: "JPG", Kind: Light, OutExt: ".jpg"},
-	"webp":   {ID: "webp", Label: "WEBP", Kind: Light, OutExt: ".webp"},
-	"md":     {ID: "md", Label: "MD", Kind: Light, OutExt: ".md"},
-	"txt":    {ID: "txt", Label: ".txt", Kind: Light, OutExt: ".txt"},
-	"clean":  {ID: "clean", Label: "Remove metadata", Kind: Light, Tag: " (clean)"},
-	"shrink": {ID: "shrink", Label: "Reduce size", Kind: Heavy, OutExt: ".pdf", Tag: " (small)"},
-	"pdf":    {ID: "pdf", Label: "PDF", Kind: Light, OutExt: ".pdf"},
-	"imgpdf": {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
-	"merge":  {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
+	"mp4":  {ID: "mp4", Label: "MP4", Kind: Heavy, OutExt: ".mp4"},
+	"mp3":  {ID: "mp3", Label: "MP3", Kind: Heavy, OutExt: ".mp3"},
+	"gif":  {ID: "gif", Label: "GIF", Kind: Heavy, OutExt: ".gif"},
+	"wav":  {ID: "wav", Label: "WAV", Kind: Heavy, OutExt: ".wav"},
+	"m4a":  {ID: "m4a", Label: "M4A", Kind: Heavy, OutExt: ".m4a"},
+	"flac": {ID: "flac", Label: "FLAC", Kind: Heavy, OutExt: ".flac"},
+	"ogg":  {ID: "ogg", Label: "OGG", Kind: Heavy, OutExt: ".ogg"},
+
+	// A video that plays on any phone or computer and is ready for WhatsApp.
+	"whatsapp": {ID: "whatsapp", Label: "MP4 (WhatsApp)", Kind: Heavy, OutExt: ".mp4", Tag: " (WhatsApp)"},
+	"png":      {ID: "png", Label: "PNG", Kind: Light, OutExt: ".png"},
+	"jpg":      {ID: "jpg", Label: "JPG", Kind: Light, OutExt: ".jpg"},
+	"webp":     {ID: "webp", Label: "WEBP", Kind: Light, OutExt: ".webp"},
+	"md":       {ID: "md", Label: "MD", Kind: Light, OutExt: ".md"},
+	"txt":      {ID: "txt", Label: ".txt", Kind: Light, OutExt: ".txt"},
+	"clean":    {ID: "clean", Label: "Remove metadata", Kind: Light, Tag: " (clean)"},
+	"shrink":   {ID: "shrink", Label: "Reduce size", Kind: Heavy, OutExt: ".pdf", Tag: " (small)"},
+	"pdf":      {ID: "pdf", Label: "PDF", Kind: Light, OutExt: ".pdf"},
+	"imgpdf":   {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
+	"merge":    {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
 }
 
 // imageExts are the picture types QuickConvert understands.
@@ -73,12 +79,15 @@ type group struct {
 
 var groups = []group{
 	{ // video
-		exts:  []string{".mov", ".mp4", ".mkv", ".avi", ".webm", ".wmv"},
-		items: []MenuItem{{"mp4", "MP4"}, {"mp3", "MP3 (audio only)"}, {"gif", "GIF"}},
+		exts: []string{".mov", ".mp4", ".mkv", ".avi", ".webm", ".wmv"},
+		items: []MenuItem{
+			{"mp4", "MP4"}, {"whatsapp", "MP4 (WhatsApp / any device)"},
+			{"mp3", "MP3 (audio only)"}, {"m4a", "M4A (audio only)"}, {"gif", "GIF"},
+		},
 	},
 	{ // audio
-		exts:  []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma"},
-		items: []MenuItem{{"mp3", "MP3"}, {"wav", "WAV"}},
+		exts:  []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus"},
+		items: []MenuItem{{"mp3", "MP3"}, {"m4a", "M4A"}, {"wav", "WAV"}, {"flac", "FLAC"}, {"ogg", "OGG"}},
 	},
 	{ // image
 		exts:  imageExts,
@@ -169,7 +178,10 @@ func itemsFor(list []group, ext string, skipSameFormat bool) []MenuItem {
 			continue
 		}
 		for _, it := range g.items {
-			if skipSameFormat && sameFormat(all[it.ActionID].OutExt, ext) {
+			// Converting a file to its own format is pointless, unless the
+			// action makes something different (it has a tag, e.g. "(WhatsApp)").
+			a := all[it.ActionID]
+			if skipSameFormat && a.Tag == "" && sameFormat(a.OutExt, ext) {
 				continue
 			}
 			out = append(out, it)
