@@ -673,3 +673,163 @@ func TestCleanOggWithoutCover(t *testing.T) {
 		t.Errorf("tags still present: %s", tags)
 	}
 }
+
+// More video types: camcorder, old phone, DVD-style and Flash video.
+func TestVideoMoreTypesToMP4(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	for _, c := range []struct{ name, vcodec, acodec, wantVideo string }{
+		{"cam.mts", "libx264", "ac3", "h264"},    // camcorder: copied
+		{"cam.m2ts", "libx264", "aac", "h264"},   // copied
+		{"old.3gp", "h263", "aac", "h264"},       // re-compressed
+		{"dvd.mpg", "mpeg2video", "mp2", "h264"}, // re-compressed
+		{"web.flv", "libx264", "aac", "h264"},    // copied
+		{"apple.m4v", "libx264", "aac", "h264"},  // copied
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			in := filepath.Join(dir, c.name)
+			args := []string{"-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:s=176x144", "-f", "lavfi", "-i", "sine=d=1",
+				"-c:v", c.vcodec, "-c:a", c.acodec, "-shortest"}
+			if strings.HasSuffix(c.name, "ts") {
+				args = append(args, "-f", "mpegts")
+			}
+			testutil.Run(t, "ffmpeg", append(args, in)...)
+			r, err := convert(t, Video, in, "mp4")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := testutil.Codecs(t, r.Outputs[0]); got["video"] != c.wantVideo || got["audio"] == "" {
+				t.Errorf("codecs %v", got)
+			}
+		})
+	}
+}
+
+func TestAudioMoreTypes(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	aiff := testutil.MakeAudio(t, dir, "mac.aiff")
+	r, err := convert(t, Audio, aiff, "mp3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := testutil.Codecs(t, r.Outputs[0]); c["audio"] != "mp3" {
+		t.Errorf("aiff codecs %v", c)
+	}
+	// AMR voice memos: ffmpeg can always read them; making one needs an
+	// encoder only some builds have.
+	amr := filepath.Join(dir, "memo.amr")
+	if err := exec.Command("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=d=1:sample_rate=8000",
+		"-ac", "1", "-c:a", "libopencore_amrnb", "-b:a", "12.2k", amr).Run(); err != nil {
+		t.Skip("this ffmpeg can't make AMR test files")
+	}
+	r, err = convert(t, Audio, amr, "m4a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := testutil.Codecs(t, r.Outputs[0]); c["audio"] != "aac" {
+		t.Errorf("amr codecs %v", c)
+	}
+}
+
+// A GIF becomes an MP4 that plays everywhere: H.264, even size,
+// transparent parts white, every frame kept.
+func TestGIFToMP4(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "funny.gif")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=10:s=101x81",
+		"-vf", "format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(gt(X,50),0,255)',"+
+			"split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128", in) // right half transparent
+	r, err := convert(t, GIFVideo, in, "mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "funny.mp4") {
+		t.Errorf("output %v", r.Outputs)
+	}
+	if c := testutil.Codecs(t, r.Outputs[0]); c["video"] != "h264" {
+		t.Errorf("codecs %v", c)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 100 || h != 80 {
+		t.Errorf("size %dx%d, want 100x80", w, h)
+	}
+	frames := strings.TrimSpace(testutil.Run(t, "ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0",
+		"-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", r.Outputs[0]))
+	if frames != "10" {
+		t.Errorf("%s frames, want 10", frames)
+	}
+	px := testutil.Run(t, "ffmpeg", "-v", "error", "-i", r.Outputs[0], "-frames:v", "1",
+		"-vf", "crop=4:4:90:40,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-")
+	if len(px) != 3 || px[0] < 240 || px[1] < 240 || px[2] < 240 {
+		t.Errorf("transparent part should be white, got %v", []byte(px))
+	}
+}
+
+// New picture types convert like the others.
+func TestImageMoreTypes(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe", "exiftool")
+	dir := t.TempDir()
+	for _, name := range []string{"scan.tif", "anim.gif"} {
+		in := testutil.MakeImage(t, dir, name, 64, 48, false)
+		r, err := convert(t, Image, in, "jpg")
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if w, h := testutil.Dims(t, r.Outputs[0]); w != 64 || h != 48 {
+			t.Errorf("%s: %dx%d", name, w, h)
+		}
+	}
+	avif := filepath.Join(dir, "web.avif")
+	if err := exec.Command("ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=64x48", "-frames:v", "1",
+		"-c:v", "libaom-av1", "-still-picture", "1", avif).Run(); err != nil {
+		t.Skip("this ffmpeg can't make AVIF test files")
+	}
+	r, err := convert(t, Image, avif, "png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 64 || h != 48 {
+		t.Errorf("avif: %dx%d", w, h)
+	}
+}
+
+// A picture becomes a Windows icon with the four usual sizes, square, with
+// the empty space transparent.
+func TestIcon(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe", "exiftool")
+	dir := t.TempDir()
+	in := testutil.MakeImage(t, dir, "logo.png", 300, 150, false)
+	r, err := convert(t, Icon, in, "ico")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "logo.ico") {
+		t.Errorf("output %v", r.Outputs)
+	}
+	sizes := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "stream=width,height,pix_fmt", "-of", "csv=p=0", r.Outputs[0])
+	for _, want := range []string{"256,256,rgba", "48,48,rgba", "32,32,rgba", "16,16,rgba"} {
+		if !strings.Contains(sizes, want) {
+			t.Errorf("missing %s: %s", want, sizes)
+		}
+	}
+	corner := testutil.Run(t, "ffmpeg", "-v", "error", "-i", r.Outputs[0], "-map", "0:0", "-frames:v", "1",
+		"-vf", "crop=1:1:0:0", "-f", "rawvideo", "-pix_fmt", "rgba", "-")
+	if len(corner) != 4 || corner[3] != 0 {
+		t.Errorf("the padding should be transparent: %v", []byte(corner))
+	}
+}
+
+// A sideways phone photo becomes an upright icon.
+func TestIconRotated(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe", "exiftool")
+	dir := t.TempDir()
+	in := testutil.MakeImage(t, dir, "p.jpg", 64, 32, false)
+	testutil.SetOrientation(t, in, 6)
+	if !contains(IconArgs("in.jpg", "out.ico", 6), "transpose=1") {
+		t.Error("rotation not applied")
+	}
+	if _, err := convert(t, Icon, in, "ico"); err != nil {
+		t.Fatal(err)
+	}
+}

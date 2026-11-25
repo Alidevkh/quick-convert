@@ -3,6 +3,7 @@
 package testutil
 
 import (
+	"archive/zip"
 	"context"
 	"os"
 	"os/exec"
@@ -258,4 +259,38 @@ func NeedHEIC(t *testing.T) {
 	if err != nil || !strings.Contains(string(out), "Tile Grid") {
 		t.Skip("this ffmpeg cannot read HEIC photos (needs 7.1 or newer)")
 	}
+}
+
+// MakeEPUB creates a two-chapter e-book (English and Arabic text).
+func MakeEPUB(t *testing.T, dir, name string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	z := zip.NewWriter(f)
+	files := []struct{ name, body string }{
+		{"mimetype", "application/epub+zip"}, // must be first and uncompressed
+		{"META-INF/container.xml", `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`},
+		{"OEBPS/content.opf", `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">x</dc:identifier><dc:title>Test Book</dc:title><dc:language>en</dc:language></metadata><manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/><item id="c2" href="c2.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="c1"/><itemref idref="c2"/></spine></package>`},
+		{"OEBPS/c1.xhtml", `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>c1</title></head><body><h1>Chapter One</h1><p>The first paragraph has <b>bold words</b> in it, and it is long enough to look like a normal paragraph of a book.</p><ul><li>apple</li><li>banana</li></ul></body></html>`},
+		{"OEBPS/c2.xhtml", `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>c2</title></head><body><h1>Chapter Two</h1><p>مرحبا بالعالم، هذا نص عربي.</p></body></html>`},
+	}
+	for i, file := range files {
+		method := zip.Deflate
+		if i == 0 {
+			method = zip.Store
+		}
+		w, err := z.CreateHeader(&zip.FileHeader{Name: file.name, Method: method})
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write([]byte(file.body))
+	}
+	if err := z.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

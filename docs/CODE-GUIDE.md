@@ -31,6 +31,7 @@
 | `internal/outpath/outpath.go` | المجلد المؤقت، وتسمية الملفات الناتجة، ومنع الكتابة فوق الملفات. |
 | `internal/engines/engines.go` | البحث عن البرامج المساعدة (ffmpeg وغيره) وتشغيلها بدون نافذة سوداء. |
 | `internal/media/media.go` | الفيديو والصوت والصور (ffmpeg). |
+| `internal/pdf/other.go` | SVG ← PNG، والكتب الإلكترونية EPUB ← PDF (MuPDF). EPUB ← MD يمر على `pdfmd` مثل PDF. |
 | `internal/photo/clean.go` | حذف البيانات المخفية من الصور (exiftool). |
 | `internal/textcopy/textcopy.go` | تحويل txt ↔ py و m و c وغيرها (نسخ المحتوى كما هو). |
 | `internal/pdf/render.go` | PDF ← صور PNG/JPG (mutool). |

@@ -368,7 +368,7 @@ func Orientation(ctx context.Context, eng *engines.Set, dir, in string) int {
 // PNG is already upright: orientation 1.
 func Readable(ctx context.Context, eng *engines.Set, dir, in string) (name string, orientation int, err error) {
 	ext := strings.ToLower(filepath.Ext(in))
-	if ext != ".heic" && ext != ".heif" {
+	if ext != ".heic" && ext != ".heif" && ext != ".avif" { // AVIF is built the same way
 		return in, Orientation(ctx, eng, dir, in), nil
 	}
 	png := "decoded-" + strings.TrimSuffix(in, filepath.Ext(in)) + ".png"
@@ -536,6 +536,70 @@ func Image(ctx context.Context, j app.Job) (app.Result, error) {
 	}
 	args := ImageArgs(in, out, j.Action.ID, orientation)
 	return runAndSave(ctx, j, out, args)
+}
+
+// GIFVideo turns an animated GIF into an MP4 video, which plays in every
+// app (many apps don't animate GIFs).
+func GIFVideo(ctx context.Context, j app.Job) (app.Result, error) {
+	out := "out.mp4"
+	return runAndSave(ctx, j, out, GIFVideoArgs(j.Work.In, out))
+}
+
+// GIFVideoArgs builds the ffmpeg command for GIF → MP4.
+func GIFVideoArgs(in, out string) []string {
+	return append(start(in),
+		"-vf", "format=rgba,split[fg][b];[b]drawbox=c=white:t=fill[bg];[bg][fg]overlay=format=rgb,"+ // transparent parts white
+			"scale=trunc(iw/2)*2:trunc(ih/2)*2,"+ // H.264 needs an even width and height
+			"format=yuv420p", // colour format all players support
+		"-c:v", "libx264", "-crf", "20", // H.264, good quality
+		"-an",                     // a GIF has no sound
+		"-movflags", "+faststart", // starts playing before fully loaded
+		out)
+}
+
+// iconSizes are the pictures inside a Windows icon, in pixels.
+var iconSizes = []string{"256", "48", "32", "16"}
+
+// Icon makes a Windows icon (.ico) from a picture.
+func Icon(ctx context.Context, j app.Job) (app.Result, error) {
+	in, orientation, err := Readable(ctx, j.Eng, j.Work.Dir, j.Work.In)
+	if err != nil {
+		return app.Result{}, err
+	}
+	out := "out.ico"
+	return runAndSave(ctx, j, out, IconArgs(in, out, orientation))
+}
+
+// IconArgs builds the ffmpeg command for a picture → icon: upright, made
+// square with a transparent border (never stretched), in 4 sizes.
+func IconArgs(in, out string, orientation int) []string {
+	graph := "[0:v]"
+	if f, ok := orientationFilters[orientation]; ok {
+		graph += f + ","
+	}
+	graph += "format=rgba,split=" + strconv.Itoa(len(iconSizes)) // one copy per size
+	for i := range iconSizes {
+		graph += "[s" + strconv.Itoa(i) + "]"
+	}
+	var maps []string
+	for i, size := range iconSizes {
+		n := strconv.Itoa(i)
+		graph += ";[s" + n + "]scale=" + size + ":" + size + ":force_original_aspect_ratio=decrease," + // fit inside
+			"pad=" + size + ":" + size + ":-1:-1:color=0x00000000[o" + n + "]" // centre on a transparent square
+		maps = append(maps, "-map", "[o"+n+"]")
+	}
+	args := []string{
+		"-hide_banner", "-nostdin", "-y",
+		"-noautorotate", // we rotate ourselves (above)
+		"-i", in,
+		"-filter_complex", graph,
+	}
+	args = append(args, maps...)
+	return append(args,
+		"-frames:v", "1", // one picture per size
+		"-c:v", "png", // PNG inside the icon keeps transparency
+		"-map_metadata", "-1",
+		out)
 }
 
 // runAndSave runs ffmpeg and saves out next to the original.

@@ -69,16 +69,19 @@ var all = map[string]Action{
 	"extract":  {ID: "extract", Label: "Extract pages", Kind: Light, OutExt: ".pdf", Asks: true},
 	"imgpdf":   {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
 	"merge":    {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
+	"ico":      {ID: "ico", Label: "ICO", Kind: Light, OutExt: ".ico"}, // Windows icon
 }
 
 // videoExts and audioExts are the video and audio types QuickConvert understands.
 var (
-	videoExts = []string{".mov", ".mp4", ".mkv", ".avi", ".webm", ".wmv"}
-	audioExts = []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus"}
+	videoExts = []string{".mov", ".mp4", ".m4v", ".mkv", ".avi", ".webm", ".wmv",
+		".3gp", ".mts", ".m2ts", ".mpg", ".flv"}
+	audioExts = []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus",
+		".aiff", ".aif", ".amr"}
 )
 
 // imageExts are the picture types QuickConvert understands.
-var imageExts = []string{".png", ".jpg", ".jpeg", ".webp", ".bmp", ".heic"}
+var imageExts = []string{".png", ".jpg", ".jpeg", ".webp", ".bmp", ".heic", ".gif", ".tif", ".tiff", ".avif"}
 
 // group is a set of file types that share the same "Convert to" submenu.
 type group struct {
@@ -100,7 +103,19 @@ var groups = []group{
 	},
 	{ // image
 		exts:  imageExts,
-		items: []MenuItem{{"png", "PNG"}, {"jpg", "JPG"}, {"webp", "WEBP"}, {"pdf", "PDF"}},
+		items: []MenuItem{{"png", "PNG"}, {"jpg", "JPG"}, {"webp", "WEBP"}, {"pdf", "PDF"}, {"ico", "ICO (icon)"}},
+	},
+	{ // an animated GIF can also become a video (plays in every app)
+		exts:  []string{".gif"},
+		items: []MenuItem{{"mp4", "MP4 (video)"}},
+	},
+	{ // a vector drawing (logo, icon) as a sharp picture
+		exts:  []string{".svg"},
+		items: []MenuItem{{"png", "PNG"}},
+	},
+	{ // e-book
+		exts:  []string{".epub"},
+		items: []MenuItem{{"pdf", "PDF"}, {"md", "MD"}},
 	},
 	{ // pdf
 		exts:  []string{".pdf"},
@@ -121,12 +136,17 @@ var groups = []group{
 var extras = []group{
 	{exts: []string{".jpg", ".jpeg", ".png", ".heic", ".webp"}, items: []MenuItem{{"clean", "Remove metadata"}}},
 	{exts: []string{".pdf"}, items: []MenuItem{{"shrink", "Reduce size"}, {"split", "Split into pages"}, {"extract", "Extract pages..."}}},
-	{exts: append(append([]string{}, cleanVideoExts...), audioExts...), items: []MenuItem{{"clean", "Remove metadata"}}},
+	{exts: append(append([]string{}, cleanVideoExts...), cleanAudioExts...), items: []MenuItem{{"clean", "Remove metadata"}}},
 }
 
-// cleanVideoExts are the videos offered "Remove metadata". MKV is left out:
-// its attached fonts and track names would be lost.
-var cleanVideoExts = []string{".mov", ".mp4", ".avi", ".webm", ".wmv"}
+// cleanVideoExts and cleanAudioExts are the types offered "Remove metadata".
+// Left out: MKV (its attached fonts and track names would be lost), and
+// camcorder (.mts .m2ts), old (.mpg .flv) and voice-memo (.amr) files,
+// whose tags hold no personal information.
+var (
+	cleanVideoExts = []string{".mov", ".mp4", ".m4v", ".avi", ".webm", ".wmv", ".3gp"}
+	cleanAudioExts = []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus", ".aiff", ".aif"}
+)
 
 // codeMenuItems creates the ".py", ".m", ... entries and registers a
 // "code-py", "code-m", ... action for each one.

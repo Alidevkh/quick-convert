@@ -32,6 +32,14 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 		return pdf.Split
 	case a.ID == "shrink":
 		return pdf.Shrink
+	case ext == ".svg": // drawing to PNG
+		return pdf.SVG
+	case ext == ".epub" && a.ID == "pdf": // e-book to PDF (to MD: below, like a PDF)
+		return pdf.EPUB
+	case ext == ".gif" && a.ID == "mp4": // animated GIF to video
+		return media.GIFVideo
+	case a.ID == "ico":
+		return media.Icon
 	case a.ID == "pdf" || a.ID == "imgpdf": // photo(s) to PDF
 		return imagepdf.Convert
 	case a.ID == "merge": // Send to → Merge PDFs

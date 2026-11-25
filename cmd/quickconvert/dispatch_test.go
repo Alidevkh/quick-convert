@@ -112,3 +112,27 @@ func TestSplitRouting(t *testing.T) {
 		t.Error("split should use pdf.Split")
 	}
 }
+
+func TestNewFormatRouting(t *testing.T) {
+	get := func(id string) actions.Action { a, _ := actions.Lookup(id); return a }
+	cases := []struct {
+		id, ext string
+		want    app.Handler
+	}{
+		{"mp4", ".gif", media.GIFVideo},
+		{"ico", ".png", media.Icon},
+		{"ico", ".heic", media.Icon},
+		{"png", ".svg", pdf.SVG},
+		{"pdf", ".epub", pdf.EPUB},
+		{"md", ".epub", pdfmd.Convert},
+		{"pdf", ".tif", imagepdf.Convert},
+		{"png", ".avif", media.Image},
+		{"mp4", ".mts", media.Video},
+		{"mp3", ".amr", media.Audio},
+	}
+	for _, c := range cases {
+		if !same(handlerFor(get(c.id), c.ext), c.want) {
+			t.Errorf("%s from %s: wrong converter", c.id, c.ext)
+		}
+	}
+}

@@ -391,3 +391,52 @@ func TestExtractAskFails(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// An SVG logo becomes a sharp PNG (longest side 2048 px) that keeps its
+// transparent background.
+func TestSVGToPNG(t *testing.T) {
+	testutil.Need(t, "mutool", "ffprobe", "ffmpeg")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "logo.svg")
+	os.WriteFile(in, []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">`+
+		`<rect x="34" y="4" width="26" height="24" fill="blue"/></svg>`), 0o644)
+	r, err := testutil.RunHandler(t, SVG, in, "png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "logo.png") {
+		t.Errorf("output %v", r.Outputs)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 2048 || h != 1024 {
+		t.Errorf("size %dx%d", w, h)
+	}
+	corner := testutil.Run(t, "ffmpeg", "-v", "error", "-i", r.Outputs[0], "-vf", "crop=1:1:0:0",
+		"-f", "rawvideo", "-pix_fmt", "rgba", "-")
+	if len(corner) != 4 || corner[3] != 0 {
+		t.Errorf("background should be transparent: %v", []byte(corner))
+	}
+}
+
+func TestEPUBToPDF(t *testing.T) {
+	testutil.Need(t, "mutool")
+	dir := t.TempDir()
+	in := testutil.MakeEPUB(t, dir, "book.epub")
+	r, err := testutil.RunHandler(t, EPUB, in, "pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "book.pdf") {
+		t.Errorf("output %v", r.Outputs)
+	}
+	text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", r.Outputs[0])
+	for _, want := range []string{"Chapter One", "Chapter Two"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("missing %q in %s", want, text)
+		}
+	}
+	// Arabic is drawn with joined letter shapes, so a PDF reader gives back
+	// those shapes (U+FE70-U+FEFF) rather than the plain letters.
+	if !strings.ContainsAny(text, "مﻣ") {
+		t.Errorf("Arabic text missing: %s", text)
+	}
+}

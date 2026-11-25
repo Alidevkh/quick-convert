@@ -63,3 +63,20 @@ func TestConvertEncrypted(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// An EPUB e-book becomes Markdown the same way a PDF does.
+func TestEPUBToMarkdown(t *testing.T) {
+	testutil.Need(t, "mutool")
+	in := testutil.MakeEPUB(t, t.TempDir(), "book.epub")
+	r, err := testutil.RunHandler(t, Convert, in, "md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(r.Outputs[0])
+	md := string(b)
+	for _, want := range []string{"# Chapter One", "**bold words**", "apple", "مرحبا بالعالم"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("missing %q in:\n%s", want, md)
+		}
+	}
+}

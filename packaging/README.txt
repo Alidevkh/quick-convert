@@ -19,7 +19,7 @@ Right-click a file. On Windows 11, click "Show more options" first
 (or hold Shift while right-clicking). Then choose:
 
   Convert to >     the formats that make sense for that file
-  Remove metadata  (photos, videos except MKV, audio) removes GPS location,
+  Remove metadata  (photos, phone videos, music) removes GPS location,
                    dates, camera and titles; saves "photo (clean).jpg",
                    "trip (clean).mov"... Music cover pictures are kept.
   Reduce size      (PDFs) saves "report (small).pdf"
@@ -46,7 +46,7 @@ the same time; the rest wait their turn.
 
 WHAT EACH OPTION DOES
 ---------------------
-Videos (.mov .mp4 .mkv .avi .webm .wmv)
+Videos (.mov .mp4 .m4v .mkv .avi .webm .wmv .3gp .mts .m2ts .mpg .flv)
   MP4 (full quality, for editing)
                     For editing programs (Premiere, CapCut, DaVinci...).
                     iPhone and most phone videos are repackaged in seconds,
@@ -65,21 +65,36 @@ Videos (.mov .mp4 .mkv .avi .webm .wmv)
   M4A (audio only)  The sound track as AAC (iPhone sound is copied, no loss).
   GIF               Animated, 15 frames per second, at most 480 pixels wide.
 
-Audio (.mp3 .wav .m4a .flac .ogg .aac .wma .opus)
+Audio (.mp3 .wav .m4a .flac .ogg .aac .wma .opus .aiff .aif .amr)
   MP3               192 kbps, plays everywhere
   M4A               AAC 192 kbps (Apple / iPhone)
   WAV               uncompressed
   FLAC              lossless, about half the size of WAV
   OGG               Vorbis, about 192 kbps
 
-Pictures (.png .jpg .jpeg .webp .bmp .heic)
+Pictures (.png .jpg .jpeg .webp .bmp .heic .gif .tif .tiff .avif)
   PNG, JPG, WEBP    Phone photos come out the right way up.
                     Transparent areas become white in JPG.
   PDF               A one-page PDF, the page the size of the picture.
                     (To put several pictures in ONE PDF, use Send to > Images to PDF.)
+  ICO (icon)        A Windows icon (256, 48, 32 and 16 pixels). Pictures that
+                    are not square get a transparent border; nothing is cut.
+  MP4 (video)       (GIFs only) The animation as a video, which plays in
+                    every app. Transparent parts become white.
+  GIFs and multi-page TIFF scans: PNG, JPG, WEBP and PDF use the first
+  picture only.
   Remove metadata   Removes GPS location, camera, dates and other hidden
                     information. Keeps the picture quality, the rotation and
                     the colours exactly the same.
+
+SVG drawings (.svg)
+  PNG               2048 pixels on the longest side, transparent background
+                    kept.
+
+E-books (.epub)
+  PDF               The book as a PDF, text still selectable.
+  MD                The text as Markdown, for AI tools.
+  Protected (DRM) e-books from online stores can't be converted.
 
 PDF
   PNG, JPG          One picture per page (report-1.png, report-2.png...).
