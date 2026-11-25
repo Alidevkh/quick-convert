@@ -246,3 +246,47 @@ func TestImageIPhoneHEICToJPG(t *testing.T) {
 		t.Errorf("got %dx%d, want portrait 3024x4032", w, h)
 	}
 }
+
+func TestAudioFormats(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	wav := testutil.MakeAudio(t, dir, "song.wav")
+	for id, codec := range map[string]string{"m4a": "aac", "flac": "flac", "ogg": "vorbis", "mp3": "mp3"} {
+		r, err := convert(t, Audio, wav, id)
+		if err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		if c := testutil.Codecs(t, r.Outputs[0]); c["audio"] != codec {
+			t.Errorf("%s: codec %v, want %s", id, c, codec)
+		}
+	}
+	mp3 := testutil.MakeAudio(t, dir, "voice.mp3")
+	r, err := convert(t, Audio, mp3, "wav")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := testutil.Codecs(t, r.Outputs[0]); c["audio"] != "pcm_s16le" {
+		t.Errorf("mp3 -> wav codec %v", c)
+	}
+}
+
+// iPhone videos already have AAC sound: M4A copies it without re-encoding.
+func TestVideoToM4ACopiesAAC(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := testutil.MakeVideo(t, dir, "clip.mov", "libx264", true)
+	r, err := convert(t, Video, in, "m4a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "clip.m4a") {
+		t.Fatalf("output %v", r.Outputs)
+	}
+	c := testutil.Codecs(t, r.Outputs[0])
+	if c["audio"] != "aac" || c["video"] != "" {
+		t.Errorf("codecs %v, want aac only", c)
+	}
+	if !contains(AudioArgs("in.mov", "out.m4a", "m4a", Info{HasAudio: true, AudioCodec: "aac"}), "-c:a copy") {
+		t.Error("AAC sound should be copied, not re-encoded")
+	}
+}

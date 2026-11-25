@@ -99,23 +99,34 @@ func MP4Args(in, out string, i Info) []string {
 	return append(args, "-movflags", "+faststart", out) // lets the video start playing before fully loaded
 }
 
-// MP3Args extracts the first audio stream as a 192 kbps MP3.
-func MP3Args(in, out string) []string {
-	return append(start(in),
-		"-vn",           // no video
-		"-map", "0:a:0", // first audio stream
-		"-c:a", "libmp3lame", "-b:a", "192k",
-		out)
+// audioCodecs says how each audio format is encoded.
+var audioCodecs = map[string][]string{
+	"mp3":  {"-c:a", "libmp3lame", "-b:a", "192k"}, // MP3 at 192 kbps
+	"m4a":  {"-c:a", "aac", "-b:a", "192k"},        // AAC at 192 kbps (the iPhone/Apple format)
+	"wav":  {"-c:a", "pcm_s16le"},                  // uncompressed, CD quality
+	"flac": {"-c:a", "flac"},                       // lossless, about half the size of WAV
+	"ogg":  {"-c:a", "libvorbis", "-q:a", "6"},     // Vorbis, about 192 kbps
 }
 
-// WAVArgs extracts the first audio stream as an uncompressed WAV.
-func WAVArgs(in, out string) []string {
-	return append(start(in),
-		"-vn",
-		"-map", "0:a:0",
-		"-c:a", "pcm_s16le", // standard CD-quality WAV
-		out)
+// AudioArgs saves the first sound track of a file (audio or video) in
+// format "mp3", "m4a", "wav", "flac" or "ogg". For M4A, sound that is
+// already AAC (iPhone videos) is copied as it is: instant and lossless.
+func AudioArgs(in, out, format string, i Info) []string {
+	args := append(start(in),
+		"-vn",           // no video (and no album-cover picture)
+		"-map", "0:a:0", // the first sound track
+	)
+	if format == "m4a" && i.AudioCodec == "aac" {
+		return append(args, "-c:a", "copy", out) // already AAC: copy without re-encoding
+	}
+	return append(append(args, audioCodecs[format]...), out)
 }
+
+// MP3Args extracts the first audio stream as a 192 kbps MP3.
+func MP3Args(in, out string) []string { return AudioArgs(in, out, "mp3", Info{}) }
+
+// WAVArgs extracts the first audio stream as an uncompressed WAV.
+func WAVArgs(in, out string) []string { return AudioArgs(in, out, "wav", Info{}) }
 
 // GIFArgs makes an animated GIF: 15 frames per second, at most 480 pixels
 // wide, using a colour palette made from the video itself so it looks good.
@@ -257,11 +268,11 @@ func Video(ctx context.Context, j app.Job) (app.Result, error) {
 			return app.Result{}, &app.UserError{Msg: "This file has no video picture"}
 		}
 		args = MP4Args(j.Work.In, out, info)
-	case "mp3":
+	case "mp3", "m4a": // the sound only
 		if !info.HasAudio {
 			return app.Result{}, &app.UserError{Msg: "This video has no audio"}
 		}
-		args = MP3Args(j.Work.In, out)
+		args = AudioArgs(j.Work.In, out, j.Action.ID, info)
 	case "gif":
 		if !info.HasVideo {
 			return app.Result{}, &app.UserError{Msg: "This file has no video picture"}
@@ -271,14 +282,14 @@ func Video(ctx context.Context, j app.Job) (app.Result, error) {
 	return runAndSave(ctx, j, out, args)
 }
 
-// Audio converts an audio file to MP3 or WAV.
+// Audio converts an audio file to MP3, M4A, WAV, FLAC or OGG.
 func Audio(ctx context.Context, j app.Job) (app.Result, error) {
-	out := "out" + j.Action.OutExt
-	args := MP3Args(j.Work.In, out)
-	if j.Action.ID == "wav" {
-		args = WAVArgs(j.Work.In, out)
+	info, err := Probe(ctx, j.Eng, j.Work.Dir, j.Work.In)
+	if err != nil || !info.HasAudio {
+		return app.Result{}, &app.UserError{Msg: "This doesn't look like an audio file"}
 	}
-	return runAndSave(ctx, j, out, args)
+	out := "out" + j.Action.OutExt
+	return runAndSave(ctx, j, out, AudioArgs(j.Work.In, out, j.Action.ID, info))
 }
 
 // Image converts a picture to PNG, JPG or WEBP, keeping it upright.
