@@ -52,9 +52,9 @@ Audio (.wav .m4a .flac .ogg .aac .wma)
 
 Pictures (.png .jpg .jpeg .webp .bmp .heic)
   PNG, JPG, WEBP    Phone photos come out the right way up.
+                    Transparent areas become white in JPG.
   PDF               A one-page PDF, the page the size of the picture.
                     (To put several pictures in ONE PDF, use Send to > Images to PDF.)
-                    Transparent areas become white in JPG.
   Remove metadata   Removes GPS location, camera, dates and other hidden
                     information. Keeps the picture quality, the rotation and
                     the colours exactly the same.
