@@ -28,7 +28,7 @@ func Convert(ctx context.Context, j app.Job) (app.Result, error) {
 	for i, in := range j.Work.Ins {
 		page, err := preparePage(ctx, j, in, fmt.Sprintf("page-%03d.jpg", i+1))
 		if err != nil {
-			return app.Result{}, err
+			return app.Result{}, app.ForFile(filepath.Base(j.Inputs[i]), err)
 		}
 		pages = append(pages, page)
 	}

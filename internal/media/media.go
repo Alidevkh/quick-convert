@@ -185,10 +185,13 @@ func PageArgs(in, out string, orientation int) []string {
 	if f, ok := orientationFilters[orientation]; ok {
 		filters = append(filters, f)
 	}
-	// Shrink the longest side to 2480 px if bigger; -2 keeps the proportions.
+	// Shrink the longest side to 2480 px if bigger, keeping the proportions.
+	// A photo that is already small keeps its exact size (min(1,...) = 1).
 	filters = append(filters,
-		"scale='if(gte(iw,ih),min("+maxPageSide+",iw),-2)':'if(gte(iw,ih),-2,min("+maxPageSide+",ih))'",
-		"format=rgba,split[fg][b];[b]drawbox=c=white:t=fill[bg];[bg][fg]overlay", // white background
+		"scale='if(gte(iw,ih),min("+maxPageSide+",iw),round(iw*min(1,"+maxPageSide+"/ih)))'"+
+			":'if(gte(iw,ih),round(ih*min(1,"+maxPageSide+"/iw)),min("+maxPageSide+",ih))'",
+		// White background; "format=rgb" keeps full black and white (no grey).
+		"format=rgba,split[fg][b];[b]drawbox=c=white:t=fill[bg];[bg][fg]overlay=format=rgb",
 		"format=yuvj420p", // standard JPEG colours, as every PDF reader expects
 	)
 	return append(args,

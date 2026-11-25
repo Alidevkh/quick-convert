@@ -149,7 +149,52 @@ func TestImagesToPDFOddSize(t *testing.T) {
 		t.Fatal(err)
 	}
 	w, h := box(t, testutil.MediaBoxes(t, filepath.Join(dir, "odd.pdf"))[0])
-	if !near(w, 144.24) || !near(h, 96.24) {
-		t.Errorf("page %vx%v, want 144.24x96.24", w, h)
+	if w != 144.24 || h != 96.24 { // exactly 601x401 px; no 1-px stretch
+		t.Errorf("page %vx%v, want exactly 144.24x96.24", w, h)
+	}
+}
+
+// Black must stay black and white must stay white (no washed-out grey).
+func TestImagesToPDFFullRange(t *testing.T) {
+	need(t)
+	dir := t.TempDir()
+	in := filepath.Join(dir, "doc.png")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi",
+		"-i", "color=c=black:s=40x20,drawbox=x=20:y=0:w=20:h=20:c=white:t=fill", "-frames:v", "1", in)
+	if _, err := testutil.RunHandler(t, Convert, in, "pdf"); err != nil {
+		t.Fatal(err)
+	}
+	png := filepath.Join(t.TempDir(), "page.png")
+	testutil.Run(t, "mutool", "draw", "-q", "-r", "300", "-o", png, filepath.Join(dir, "doc.pdf"))
+	raw, err := exec.Command("ffmpeg", "-v", "error", "-i", png, "-frames:v", "1",
+		"-f", "rawvideo", "-pix_fmt", "gray", "-").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, _ := testutil.Dims(t, png)
+	row := raw[(len(raw)/w/2)*w:] // a row in the middle
+	if black, white := row[2], row[w-3]; black > 5 || white < 250 {
+		t.Errorf("black = %d (want ≤5), white = %d (want ≥250)", black, white)
+	}
+}
+
+// A damaged photo among many: the message must name it.
+func TestImagesToPDFBadPhotoNamed(t *testing.T) {
+	need(t)
+	dir := t.TempDir()
+	good := testutil.MakeImage(t, dir, "a.jpg", 20, 20, false)
+	bad := filepath.Join(dir, "b.jpg")
+	os.WriteFile(bad, []byte("this is not a picture"), 0o644)
+	var body string
+	app.RunMany(context.Background(), "imgpdf", []string{good, bad}, app.Deps{
+		Notify:     func(title, b string) { body = b },
+		Acquire:    func() func() { return func() {} },
+		Log:        &bytes.Buffer{},
+		Eng:        engines.Default(),
+		Handlers:   func(actions.Action, string) app.Handler { return Convert },
+		StartDelay: time.Hour,
+	})
+	if !strings.Contains(body, "b.jpg") {
+		t.Errorf("message %q does not name the damaged photo", body)
 	}
 }

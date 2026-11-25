@@ -95,7 +95,7 @@ func MakeImage(t *testing.T, dir, name string, w, h int, transparent bool) strin
 	t.Helper()
 	path := filepath.Join(dir, name)
 	size := strconv.Itoa(w) + "x" + strconv.Itoa(h)
-	source := "color=c=red:s=" + size
+	source := "color=c=red:s=" + size + ",format=rgb24" // rgb24 keeps odd sizes exact
 	if transparent {
 		source = "color=c=black@0.0:s=" + size + ",format=rgba"
 	}

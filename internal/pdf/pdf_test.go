@@ -234,7 +234,7 @@ func TestMergeEncrypted(t *testing.T) {
 	a := testutil.MakePDF(t, dir, "a.pdf", 1)
 	b := testutil.MakeEncryptedPDF(t, dir, "b.pdf")
 	code, last := mergeThroughApp(t, a, b)
-	if code != 1 || last[1] != "This PDF is password-protected" {
+	if code != 1 || last[1] != "b.pdf: This PDF is password-protected" {
 		t.Errorf("code %d notify %v", code, last)
 	}
 	left, _ := filepath.Glob(filepath.Join(dir, "*merged*"))

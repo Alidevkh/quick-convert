@@ -5,6 +5,7 @@ package pdf
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"quickconvert/internal/app"
 )
@@ -17,9 +18,9 @@ func Merge(ctx context.Context, j app.Job) (app.Result, error) {
 	}
 	// mutool merge does not complain about a PDF that needs a password: it
 	// silently writes a blank page. So first check every PDF can be opened.
-	for _, in := range j.Work.Ins {
+	for i, in := range j.Work.Ins {
 		if _, err := j.Eng.Run(ctx, j.Work.Dir, "mutool", "info", in); err != nil {
-			return app.Result{}, Friendly(err)
+			return app.Result{}, app.ForFile(filepath.Base(j.Inputs[i]), Friendly(err))
 		}
 	}
 
