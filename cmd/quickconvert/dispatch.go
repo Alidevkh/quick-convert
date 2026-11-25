@@ -3,6 +3,7 @@ package main
 // This file connects each menu action to the package that does the work.
 
 import (
+	"context"
 	"strings"
 
 	"quickconvert/internal/actions"
@@ -25,6 +26,8 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 		return photo.Clean
 	case a.ID == "shrink":
 		return pdf.Shrink
+	case a.ID == "pdf" || a.ID == "imgpdf" || a.ID == "merge":
+		return notYet
 	case a.ID == "md":
 		return pdfmd.Convert
 	case ext == ".pdf": // png, jpg from a PDF
@@ -47,4 +50,9 @@ func isVideo(ext string) bool {
 		}
 	}
 	return false
+}
+
+// notYet stands in for converters being written (replaced before release).
+func notYet(ctx context.Context, j app.Job) (app.Result, error) {
+	return app.Result{}, &app.UserError{Msg: "Not built yet"}
 }

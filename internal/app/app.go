@@ -25,11 +25,12 @@ import (
 
 // Job is everything a converter needs to know about one request.
 type Job struct {
-	Input  string         // full path of the original file
+	Input  string         // full path of the original file (the first one, if several)
+	Inputs []string       // all original files, in order (just Input for one file)
 	Base   string         // original name without extension, e.g. "trip"
 	Ext    string         // original extension, lower case, e.g. ".mov"
 	Action actions.Action // what to do
-	Work   *outpath.Work  // temporary folder; the input is inside as Work.In
+	Work   *outpath.Work  // temporary folder; inputs are inside as Work.In / Work.Ins
 	Eng    *engines.Set   // the converter programs
 }
 
@@ -94,6 +95,72 @@ func Run(ctx context.Context, actionID, input string, d Deps) (code int) {
 		return fail(&UserError{Msg: "This file is empty"})
 	}
 
+	result, err := execute(ctx, action, []string{input}, d)
+	outputs, runErr = result.Outputs, err
+	return finish(d, result, err, fail, filepath.Dir(input))
+}
+
+// RunMany carries out a Send to action (several files in one run, e.g.
+// "Images to PDF"). Files the action can't use are skipped, and the rest
+// are put in natural file-name order.
+func RunMany(ctx context.Context, actionID string, inputs []string, d Deps) (code int) {
+	var outputs []string
+	var runErr error
+	defer func() { writeLog(d.Log, actionID, strings.Join(inputs, ", "), outputs, runErr) }()
+
+	entry, ok := actions.SendToFor(actionID)
+	if !ok {
+		runErr = fmt.Errorf("unknown Send to action %q", actionID)
+		d.Notify("QuickConvert", runErr.Error())
+		return ExitUsage
+	}
+	action, _ := actions.Lookup(actionID)
+
+	usable := usableFiles(inputs, entry.Exts)
+	if len(usable) == 0 {
+		runErr = &UserError{Msg: entry.NoneMsg}
+		d.Notify("QuickConvert", entry.NoneMsg)
+		return ExitFailed
+	}
+	SortNatural(usable)
+
+	name := filepath.Base(usable[0])
+	fail := func(err error) int {
+		runErr = err
+		d.Notify("Couldn't make "+action.Label, reason(err, filepath.Ext(name)))
+		return ExitFailed
+	}
+	result, err := execute(ctx, action, usable, d)
+	outputs, runErr = result.Outputs, err
+	return finish(d, result, err, fail, filepath.Dir(usable[0]))
+}
+
+// usableFiles keeps the regular, non-empty files with one of the extensions.
+func usableFiles(paths, exts []string) []string {
+	var keep []string
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(p))
+		for _, e := range exts {
+			if ext == e {
+				keep = append(keep, p)
+				break
+			}
+		}
+	}
+	return keep
+}
+
+// execute is the part shared by Run and RunMany: show "Converting…" if it
+// takes a while, wait for a heavy-job slot, make the temporary folder (next
+// to the first file), put the inputs in it, and run the converter.
+func execute(ctx context.Context, action actions.Action, inputs []string, d Deps) (Result, error) {
+	first := inputs[0]
+	name := filepath.Base(first)
+
 	// Tell the user we started, but only if the job takes a while.
 	startTimer := time.AfterFunc(d.StartDelay, func() {
 		d.Notify(fmt.Sprintf("Converting %s → %s…", name, action.Label), "")
@@ -105,38 +172,44 @@ func Run(ctx context.Context, actionID, input string, d Deps) (code int) {
 		defer release()
 	}
 
-	work, err := outpath.NewWork(filepath.Dir(input))
+	work, err := outpath.NewWork(filepath.Dir(first))
 	if err != nil {
-		return fail(err)
+		return Result{}, err
 	}
 	defer work.Cleanup()
-	if err := work.LinkInput(input); err != nil {
-		return fail(&UserError{Msg: "Couldn't read the file"})
+	if len(inputs) == 1 {
+		err = work.LinkInput(first)
+	} else {
+		err = work.LinkInputs(inputs)
+	}
+	if err != nil {
+		return Result{}, &UserError{Msg: "Couldn't read the file"}
 	}
 
+	ext := strings.ToLower(filepath.Ext(name))
 	job := Job{
-		Input:  input,
+		Input:  first,
+		Inputs: inputs,
 		Base:   strings.TrimSuffix(name, filepath.Ext(name)),
 		Ext:    ext,
 		Action: action,
 		Work:   work,
 		Eng:    d.Eng,
 	}
-	result, err := d.Handlers(action, ext)(ctx, job)
-	startTimer.Stop()
-	outputs = result.Outputs
+	return d.Handlers(action, ext)(ctx, job)
+}
 
+// finish shows the final notification and returns the exit code.
+func finish(d Deps, result Result, err error, fail func(error) int, folder string) int {
 	var notice *Info
 	switch {
 	case errors.As(err, &notice):
-		runErr = err
 		d.Notify("QuickConvert", notice.Msg)
 		return ExitOK
 	case err != nil:
 		return fail(err)
 	}
-
-	d.Notify(doneTitle(result), "Saved in "+filepath.Dir(input))
+	d.Notify(doneTitle(result), "Saved in "+folder)
 	return ExitOK
 }
 

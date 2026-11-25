@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -239,5 +240,68 @@ func TestRunEmptyFile(t *testing.T) {
 	}
 	if got := rec.last(); got[1] != "This file is empty" || called {
 		t.Errorf("notify = %v, handler called = %v", got, called)
+	}
+}
+
+func TestSortNatural(t *testing.T) {
+	paths := []string{"b/IMG_10.jpg", "a/IMG_9.jpg", "IMG_2.JPG", "img_1.jpg"}
+	SortNatural(paths)
+	want := []string{"img_1.jpg", "IMG_2.JPG", "a/IMG_9.jpg", "b/IMG_10.jpg"}
+	if fmt.Sprint(paths) != fmt.Sprint(want) {
+		t.Errorf("got %v", paths)
+	}
+}
+
+func TestRunManyFiltersAndSorts(t *testing.T) {
+	var seen Job
+	h := func(ctx context.Context, j Job) (Result, error) { seen = j; return Result{}, nil }
+	input, _, _, d := setup(t, "IMG_10.jpg", h)
+	dir := filepath.Dir(input)
+	write := func(name, content string) string {
+		p := filepath.Join(dir, name)
+		os.WriteFile(p, []byte(content), 0o644)
+		return p
+	}
+	notes := write("notes.txt", "x")
+	img9 := write("IMG_9.jpg", "x")
+	empty := write("IMG_1.jpg", "")
+	folder := filepath.Join(dir, "sub.jpg")
+	os.Mkdir(folder, 0o755)
+
+	if code := RunMany(context.Background(), "imgpdf", []string{input, notes, img9, folder, empty}, d); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if fmt.Sprint(seen.Inputs) != fmt.Sprint([]string{img9, input}) || seen.Base != "IMG_9" {
+		t.Errorf("Inputs = %v Base = %q", seen.Inputs, seen.Base)
+	}
+	if len(seen.Work.Ins) != 2 {
+		t.Errorf("Ins = %v", seen.Work.Ins)
+	}
+}
+
+func TestRunManyNoneAccepted(t *testing.T) {
+	input, rec, _, d := setup(t, "notes.txt", commitCopy)
+	if code := RunMany(context.Background(), "imgpdf", []string{input}, d); code != 1 {
+		t.Fatalf("exit %d", code)
+	}
+	if got := rec.last(); got[1] != "No pictures selected" {
+		t.Errorf("notify = %v", got)
+	}
+}
+
+func TestRunManyUnknownAction(t *testing.T) {
+	input, _, _, d := setup(t, "a.mov", commitCopy)
+	if code := RunMany(context.Background(), "mp4", []string{input}, d); code != 2 {
+		t.Errorf("exit %d", code)
+	}
+}
+
+func TestRunSetsInputs(t *testing.T) {
+	var seen Job
+	h := func(ctx context.Context, j Job) (Result, error) { seen = j; return Result{}, nil }
+	input, _, _, d := setup(t, "x.txt", h)
+	Run(context.Background(), "code-py", input, d)
+	if fmt.Sprint(seen.Inputs) != fmt.Sprint([]string{input}) || len(seen.Work.Ins) != 1 {
+		t.Errorf("Inputs = %v Ins = %v", seen.Inputs, seen.Work.Ins)
 	}
 }

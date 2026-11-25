@@ -2,6 +2,10 @@
 //
 //	quickconvert.exe <action> "<file>"      e.g.  quickconvert.exe mp4 "C:\Videos\trip.mov"
 //
+// or, from the Send to menu, with every selected file:
+//
+//	quickconvert.exe imgpdf "a.jpg" "b.jpg" ...
+//
 // It does the job, shows a notification, and exits. Nothing keeps running
 // in the background. See internal/app for the step-by-step flow.
 package main
@@ -14,6 +18,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"quickconvert/internal/actions"
 	"quickconvert/internal/app"
 	"quickconvert/internal/engines"
 	"quickconvert/internal/platform"
@@ -30,22 +35,30 @@ func main() {
 		fmt.Println("QuickConvert", version)
 		return
 	}
-	if len(os.Args) != 3 {
-		platform.Notify("QuickConvert", "Usage: quickconvert <action> <file>")
+	_, isSendTo := actions.SendToFor(argAt(1))
+	if len(os.Args) < 3 || (!isSendTo && len(os.Args) != 3) {
+		platform.Notify("QuickConvert", "Usage: quickconvert <action> <file> (Send to actions: <file> <file>...)")
 		os.Exit(app.ExitUsage)
 	}
 
 	logFile := openLog()
 	defer logFile.Close()
 
-	code := app.Run(context.Background(), os.Args[1], os.Args[2], app.Deps{
+	deps := app.Deps{
 		Notify:     platform.Notify,
 		Acquire:    platform.AcquireHeavy,
 		Log:        logFile,
 		Eng:        engines.Default(),
 		Handlers:   handlerFor,
 		StartDelay: time.Second,
-	})
+	}
+	var code int
+	if isSendTo {
+		// "Send to" passes every selected file: quickconvert.exe imgpdf a.jpg b.jpg ...
+		code = app.RunMany(context.Background(), os.Args[1], os.Args[2:], deps)
+	} else {
+		code = app.Run(context.Background(), os.Args[1], os.Args[2], deps)
+	}
 	logFile.Close()
 	os.Exit(code)
 }
@@ -71,6 +84,14 @@ func openLog() io.WriteCloser {
 		return nopCloser{io.Discard}
 	}
 	return f
+}
+
+// argAt returns command-line argument i, or "" if there is none.
+func argAt(i int) string {
+	if i < len(os.Args) {
+		return os.Args[i]
+	}
+	return ""
 }
 
 type nopCloser struct{ io.Writer }
