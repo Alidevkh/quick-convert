@@ -538,3 +538,14 @@ func TestWhatsAppDropsMetadata(t *testing.T) {
 		t.Errorf("location still present: %s", tags)
 	}
 }
+
+// OGG/Opus covers can't be copied back into OGG by ffmpeg: map sound only.
+func TestCleanArgsOggSoundOnly(t *testing.T) {
+	args := strings.Join(CleanArgs("in.ogg", "out.ogg"), " ")
+	if strings.Contains(args, "0:v") || !strings.Contains(args, "-map 0:a") {
+		t.Errorf("args = %s", args)
+	}
+	if !strings.Contains(strings.Join(CleanArgs("in.mov", "out.mov"), " "), "0:v?") {
+		t.Error("videos must keep the picture")
+	}
+}

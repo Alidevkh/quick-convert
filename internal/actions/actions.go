@@ -29,6 +29,7 @@ type Action struct {
 	Kind   Kind
 	OutExt string // extension of the result; "" means "same as the input"
 	Tag    string // added to the result's name, e.g. " (clean)"
+	Asks   bool   // asks the user a question first (no "Converting…" notice meanwhile)
 }
 
 // MenuItem is one entry in a right-click menu.
@@ -65,7 +66,7 @@ var all = map[string]Action{
 	"shrink":   {ID: "shrink", Label: "Reduce size", Kind: Heavy, OutExt: ".pdf", Tag: " (small)"},
 	"pdf":      {ID: "pdf", Label: "PDF", Kind: Light, OutExt: ".pdf"},
 	"split":    {ID: "split", Label: "Split into pages", Kind: Light, OutExt: ".pdf"},
-	"extract":  {ID: "extract", Label: "Extract pages", Kind: Light, OutExt: ".pdf"},
+	"extract":  {ID: "extract", Label: "Extract pages", Kind: Light, OutExt: ".pdf", Asks: true},
 	"imgpdf":   {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
 	"merge":    {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
 }

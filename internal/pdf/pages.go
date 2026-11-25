@@ -6,6 +6,7 @@ package pdf
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -17,6 +18,7 @@ import (
 // (،) are accepted too.
 func ParsePages(spec string, count int) ([]int, error) {
 	spec = westernDigits(spec)
+	spec = spacesAroundDash.ReplaceAllString(spec, "-") // "1 - 3" means "1-3"
 	split := func(r rune) bool { return r == ',' || r == '،' || unicode.IsSpace(r) }
 	var pages []int
 	for _, part := range strings.FieldsFunc(spec, split) {
@@ -40,6 +42,9 @@ func ParsePages(spec string, count int) ([]int, error) {
 	}
 	return pages, nil
 }
+
+// spacesAroundDash matches a dash (or en dash) with spaces around it.
+var spacesAroundDash = regexp.MustCompile(`\s*[-–]\s*`)
 
 // parseRange reads "7" or "3-5" (a dash or an en dash).
 func parseRange(s string) (from, to int, err error) {

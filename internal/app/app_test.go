@@ -345,3 +345,21 @@ func TestLogKeepsEngineDetailsThroughForFile(t *testing.T) {
 		t.Errorf("notification = %v", got)
 	}
 }
+
+// Actions that ask the user something (Extract pages...) must not show
+// "Converting…" while the question box is open.
+func TestNoStartNotificationForInteractiveAction(t *testing.T) {
+	slow := func(ctx context.Context, j Job) (Result, error) {
+		time.Sleep(120 * time.Millisecond) // the user is typing
+		return Result{}, &Info{}
+	}
+	input, rec, log, d := setup(t, "doc.pdf", slow)
+	d.StartDelay = 50 * time.Millisecond
+	Run(context.Background(), "extract", input, d)
+	if calls := rec.all(); len(calls) != 0 {
+		t.Errorf("notifications = %v, want none", calls)
+	}
+	if !strings.Contains(log.String(), "cancelled") {
+		t.Errorf("log should say cancelled: %q", log.String())
+	}
+}

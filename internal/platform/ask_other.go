@@ -12,9 +12,9 @@ import (
 )
 
 // AskPages asks on the terminal (used when running outside Windows).
-func AskPages(pages int) (answer string, ok bool) {
+func AskPages(pages int) (answer string, ok bool, err error) {
 	fmt.Fprint(os.Stderr, AskPrompt(pages)+"\n> ")
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	line, readErr := bufio.NewReader(os.Stdin).ReadString('\n')
 	answer = strings.TrimSpace(line)
-	return answer, err == nil && answer != ""
+	return answer, readErr == nil && answer != "", nil
 }

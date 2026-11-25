@@ -162,10 +162,14 @@ func execute(ctx context.Context, action actions.Action, inputs []string, d Deps
 	first := inputs[0]
 	name := filepath.Base(first)
 
-	// Tell the user we started, but only if the job takes a while.
+	// Tell the user we started, but only if the job takes a while — and
+	// not for actions that first ask a question (the user is still typing).
 	startTimer := time.AfterFunc(d.StartDelay, func() {
 		d.Notify(fmt.Sprintf("Converting %s → %s…", name, action.Label), "")
 	})
+	if action.Asks {
+		startTimer.Stop()
+	}
 	defer startTimer.Stop()
 
 	if action.Kind == actions.Heavy {
@@ -257,7 +261,10 @@ func writeLog(w io.Writer, version, actionID, input string, outputs []string, er
 		return
 	}
 	line := fmt.Sprintf("%s v%s %s %s -> %s", time.Now().Format(time.RFC3339), version, actionID, input, strings.Join(outputs, ", "))
-	if err != nil {
+	var notice *Info
+	if errors.As(err, &notice) && notice.Msg == "" {
+		line += " | cancelled"
+	} else if err != nil {
 		line += " | " + err.Error()
 		var engineErr *engines.EngineError
 		if errors.As(err, &engineErr) {

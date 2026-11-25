@@ -332,14 +332,7 @@ func Readable(ctx context.Context, eng *engines.Set, dir, in string) (name strin
 // dropped; a music file's cover picture is kept.
 func Clean(ctx context.Context, j app.Job) (app.Result, error) {
 	out := "out" + j.Ext
-	args := append(start(j.Work.In),
-		"-map", "0:v?", // the picture (or album cover)...
-		"-map", "0:a?", // ...the sound...
-		"-map", "0:s?", // ...and subtitles, but no data tracks
-		"-map_metadata", "-1", // drop all metadata
-		"-map_chapters", "-1", // and chapter titles
-		"-c", "copy", // copy picture and sound as they are
-		out)
+	args := CleanArgs(j.Work.In, out)
 	if _, err := j.Eng.Run(ctx, j.Work.Dir, "ffmpeg", args...); err != nil {
 		return app.Result{}, err
 	}
@@ -348,6 +341,27 @@ func Clean(ctx context.Context, j app.Job) (app.Result, error) {
 		return app.Result{}, err
 	}
 	return app.Result{Outputs: []string{saved}}, nil
+}
+
+// CleanArgs builds the ffmpeg command for Clean.
+func CleanArgs(in, out string) []string {
+	args := start(in)
+	switch strings.ToLower(filepath.Ext(out)) {
+	case ".ogg", ".opus":
+		// ffmpeg can't write a cover picture back into OGG: sound only.
+		args = append(args, "-map", "0:a")
+	default:
+		args = append(args,
+			"-map", "0:v?", // the picture (or album cover)...
+			"-map", "0:a?", // ...the sound...
+			"-map", "0:s?", // ...and subtitles, but no data tracks
+		)
+	}
+	return append(args,
+		"-map_metadata", "-1", // drop all metadata
+		"-map_chapters", "-1", // and chapter titles
+		"-c", "copy", // copy picture and sound as they are
+		out)
 }
 
 // Video converts a video to MP4, MP3 or GIF.

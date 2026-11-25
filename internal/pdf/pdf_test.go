@@ -318,7 +318,7 @@ func TestSplitEncrypted(t *testing.T) {
 func withAnswer(t *testing.T, answer string, ok bool) {
 	t.Helper()
 	old := AskPages
-	AskPages = func(pages int) (string, bool) { return answer, ok }
+	AskPages = func(pages int) (string, bool, error) { return answer, ok, nil }
 	t.Cleanup(func() { AskPages = old })
 }
 
@@ -373,5 +373,21 @@ func TestExtractEncrypted(t *testing.T) {
 	code, body := runThroughApp(t, "extract", in, Extract)
 	if code != 1 || body != "This PDF is password-protected" {
 		t.Errorf("code %d body %q", code, body)
+	}
+}
+
+// If the page box can't be shown (PowerShell blocked), the user must get a
+// message, not silence.
+func TestExtractAskFails(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	old := AskPages
+	AskPages = func(int) (string, bool, error) { return "", false, errors.New("blocked by policy") }
+	t.Cleanup(func() { AskPages = old })
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 3)
+	_, err := testutil.RunHandler(t, Extract, in, "extract")
+	var ue *app.UserError
+	if !errors.As(err, &ue) || ue.Msg != "Couldn't show the page box (PowerShell may be blocked)" {
+		t.Errorf("err = %v", err)
 	}
 }

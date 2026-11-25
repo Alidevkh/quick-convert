@@ -53,3 +53,29 @@ func TestPagesLabel(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// People type spaces around the dash.
+func TestParsePagesSpacesAroundDash(t *testing.T) {
+	for _, in := range []string{"1 - 3, 5", "1 -3 5", "1– 3 ,5"} {
+		got, err := ParsePages(in, 10)
+		if err != nil || !reflect.DeepEqual(got, []int{1, 2, 3, 5}) {
+			t.Errorf("ParsePages(%q) = %v, %v", in, got, err)
+		}
+	}
+}
+
+func TestPagesFromInfo(t *testing.T) {
+	info := "PDF-1.7\nInfo object (3 0 R):\n<<>>\nPages: 12\n\nRetrieving info from pages 1-12...\n"
+	if n, ok := pagesFromInfo(info); !ok || n != 12 {
+		t.Errorf("got %d, %v", n, ok)
+	}
+	if _, ok := pagesFromInfo("garbage"); ok {
+		t.Error("garbage should not parse")
+	}
+}
+
+func TestCleanAnswer(t *testing.T) {
+	if got := cleanAnswer("\xef\xbb\xbf1-3\r\n"); got != "1-3" {
+		t.Errorf("got %q", got)
+	}
+}
