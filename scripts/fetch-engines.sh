@@ -12,12 +12,14 @@
 set -euo pipefail
 
 FFMPEG_URL="https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-MUPDF_VERSION="1.24.10"
-MUPDF_URL="https://mupdf.com/downloads/archive/mupdf-${MUPDF_VERSION}-windows.zip"
+MUPDF_VERSION="1.28.5"
+MUPDF_URL="https://casper.mupdf.com/downloads/archive/mupdf-${MUPDF_VERSION}-windows.zip"
 GS_VERSION="10040"   # Ghostscript 10.04.0
 GS_URL="https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs${GS_VERSION}/gs${GS_VERSION}w64.exe"
-# exiftool.org only hosts the newest version; ver.txt says which one that is.
+# exiftool.org says which version is newest (ver.txt) and publishes the
+# official checksums; the zip itself is hosted on SourceForge.
 EXIFTOOL_VERSION_URL="https://exiftool.org/ver.txt"
+EXIFTOOL_DOWNLOAD="https://downloads.sourceforge.net/project/exiftool"
 
 cd "$(dirname "$0")/.."
 OUT="engines/windows"
@@ -49,7 +51,12 @@ fi
 
 if [ ! -f "$OUT/exiftool.exe" ]; then
   version="$(curl -fsSL "$EXIFTOOL_VERSION_URL" | tr -d '[:space:]')"
-  download "https://exiftool.org/exiftool-${version}_64.zip" "$TMP/exiftool.zip"
+  zipname="exiftool-${version}_64.zip"
+  download "$EXIFTOOL_DOWNLOAD/$zipname" "$TMP/exiftool.zip"
+  # Check the download matches the official SHA-256 checksum.
+  expected="$(curl -fsSL "https://exiftool.org/checksums-${version}.txt" | sed -n "s/^SHA2-256($zipname)= //p")"
+  actual="$(sha256sum "$TMP/exiftool.zip" | cut -d' ' -f1)"
+  [ -n "$expected" ] && [ "$expected" = "$actual" ] || { echo "ExifTool checksum mismatch" >&2; exit 1; }
   rm -rf "$TMP/exiftool" && unzip -q "$TMP/exiftool.zip" -d "$TMP/exiftool"
   cp "$TMP"/exiftool/*/"exiftool(-k).exe" "$OUT/exiftool.exe"
   rm -rf "$OUT/exiftool_files" && cp -r "$TMP"/exiftool/*/exiftool_files "$OUT/"
