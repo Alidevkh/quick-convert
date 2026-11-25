@@ -421,7 +421,7 @@ func TestEPUBToPDF(t *testing.T) {
 	testutil.Need(t, "mutool")
 	dir := t.TempDir()
 	in := testutil.MakeEPUB(t, dir, "book.epub")
-	r, err := testutil.RunHandler(t, EPUB, in, "pdf")
+	r, err := testutil.RunHandler(t, ToPDF, in, "pdf")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,5 +438,20 @@ func TestEPUBToPDF(t *testing.T) {
 	// those shapes (U+FE70-U+FEFF) rather than the plain letters.
 	if !strings.ContainsAny(text, "مﻣ") {
 		t.Errorf("Arabic text missing: %s", text)
+	}
+}
+
+// A multi-page TIFF scan becomes a PDF with every page.
+func TestMultiPageTIFFToPDF(t *testing.T) {
+	testutil.Need(t, "mutool", "convert")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "scan.tif")
+	testutil.Run(t, "convert", "-size", "100x140", "xc:white", "xc:red", "xc:blue", in)
+	r, err := testutil.RunHandler(t, ToPDF, in, "pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info := testutil.Run(t, "mutool", "info", r.Outputs[0]); !strings.Contains(info, "Pages: 3") {
+		t.Errorf("want 3 pages: %s", info)
 	}
 }

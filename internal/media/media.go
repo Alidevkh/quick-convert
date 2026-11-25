@@ -31,6 +31,9 @@ type Info struct {
 	ColorTransfer string
 	// FrameRate of the video in frames per second (0 if unknown).
 	FrameRate float64
+	// FieldOrder of the video: "progressive", or "tt", "bb"... for
+	// interlaced video (camcorders, DVDs, TV recordings).
+	FieldOrder string
 	// Streams lists every stream in the file, in order.
 	Streams []Stream
 }
@@ -70,6 +73,7 @@ func Probe(ctx context.Context, eng *engines.Set, dir, in string) (Info, error) 
 			CodecName     string `json:"codec_name"`
 			ColorTransfer string `json:"color_transfer"`
 			AvgFrameRate  string `json:"avg_frame_rate"` // e.g. "30/1" or "120/1"
+			FieldOrder    string `json:"field_order"`
 			Disposition   struct {
 				AttachedPic int `json:"attached_pic"`
 			} `json:"disposition"`
@@ -86,6 +90,7 @@ func Probe(ctx context.Context, eng *engines.Set, dir, in string) (Info, error) 
 		case s.CodecType == "video" && s.Disposition.AttachedPic == 0 && !info.HasVideo:
 			info.HasVideo, info.VideoCodec, info.ColorTransfer = true, s.CodecName, s.ColorTransfer
 			info.FrameRate = parseRate(s.AvgFrameRate)
+			info.FieldOrder = s.FieldOrder
 		case s.CodecType == "audio" && !info.HasAudio:
 			info.HasAudio, info.AudioCodec = true, s.CodecName
 		}
@@ -219,7 +224,7 @@ func WhatsAppArgs(in, out string, i Info) []string {
 		"-map", "0:a:0?", // ...and the main sound track, if there is one
 		"-map_metadata", "-1", // drop all metadata (GPS location, dates, camera): it is for sharing
 	)
-	var filters []string
+	filters := tidyPicture(i)
 	if i.FrameRate > 60.5 {
 		// Slow-motion / 120 fps videos: more than 60 fps needs H.264 levels
 		// that many phones and TVs can't play.
@@ -257,11 +262,29 @@ func WhatsAppArgs(in, out string, i Info) []string {
 
 // GIFArgs makes an animated GIF: 15 frames per second, at most 480 pixels
 // wide, using a colour palette made from the video itself so it looks good.
-func GIFArgs(in, out string) []string {
-	filter := "fps=15," +
-		"scale='min(480,iw)':-1:flags=lanczos," + // shrink to 480 px wide (never enlarge)
-		"split[a][b];[a]palettegen[p];[b][p]paletteuse" // build the best 256 colours, then use them
+func GIFArgs(in, out string, i Info) []string {
+	filter := strings.Join(append(tidyPicture(i),
+		"fps=15",
+		"scale='min(480,iw)':-1:flags=lanczos", // shrink to 480 px wide (never enlarge)
+		"split[a][b];[a]palettegen[p];[b][p]paletteuse", // build the best 256 colours, then use them
+	), ",")
 	return append(start(in), "-vf", filter, "-loop", "0", out) // loop forever
+}
+
+// tidyPicture returns the first filters for a video that is re-drawn
+// (WhatsApp, GIF):
+//   - interlaced video (camcorders, DVDs) is made progressive, otherwise
+//     moving things show comb-like lines;
+//   - "wide pixels" (some camcorders and DVDs store 16:9 pictures in a
+//     narrower size) become square, so the picture isn't squashed in apps
+//     that ignore the pixel shape (GIFs, some phones).
+func tidyPicture(i Info) []string {
+	var f []string
+	switch i.FieldOrder {
+	case "tt", "bb", "tb", "bt":
+		f = append(f, "bwdif") // remove interlacing
+	}
+	return append(f, "scale=iw*sar:ih,setsar=1") // square pixels (no change if already square)
 }
 
 // orientationFilters turns the EXIF "which way is up" number (1-8) into
@@ -407,14 +430,23 @@ func Clean(ctx context.Context, j app.Job) (app.Result, error) {
 
 // CleanArgs builds the ffmpeg command for Clean (all types except OGG).
 func CleanArgs(in, out string) []string {
-	return append(start(in),
+	args := append(start(in),
 		"-map", "0:v?", // the picture (or album cover)...
 		"-map", "0:a?", // ...the sound...
 		"-map", "0:s?", // ...and subtitles, but no data tracks
 		"-map_metadata", "-1", // drop all metadata
 		"-map_chapters", "-1", // and chapter titles
 		"-c", "copy", // copy picture and sound as they are
-		out)
+	)
+	switch strings.ToLower(filepath.Ext(out)) {
+	case ".m4v":
+		// ffmpeg's ".m4v" writer is the old iPod one, which refuses HEVC;
+		// an .m4v file is really an MP4.
+		args = append(args, "-f", "mp4")
+	case ".aiff", ".aif":
+		args = append(args, "-write_id3v2", "1") // AIFF keeps its cover only this way
+	}
+	return append(args, out)
 }
 
 func isOgg(ext string) bool {
@@ -512,7 +544,7 @@ func Video(ctx context.Context, j app.Job) (app.Result, error) {
 		if !info.HasVideo {
 			return app.Result{}, &app.UserError{Msg: "This file has no video picture"}
 		}
-		args = GIFArgs(j.Work.In, out)
+		args = GIFArgs(j.Work.In, out, info)
 	}
 	return runAndSave(ctx, j, out, args)
 }
@@ -538,20 +570,21 @@ func Image(ctx context.Context, j app.Job) (app.Result, error) {
 	return runAndSave(ctx, j, out, args)
 }
 
-// GIFVideo turns an animated GIF into an MP4 video, which plays in every
+// GIFToMP4 turns an animated GIF into an MP4 video, which plays in every
 // app (many apps don't animate GIFs).
-func GIFVideo(ctx context.Context, j app.Job) (app.Result, error) {
+func GIFToMP4(ctx context.Context, j app.Job) (app.Result, error) {
 	out := "out.mp4"
-	return runAndSave(ctx, j, out, GIFVideoArgs(j.Work.In, out))
+	return runAndSave(ctx, j, out, GIFToMP4Args(j.Work.In, out))
 }
 
-// GIFVideoArgs builds the ffmpeg command for GIF → MP4.
-func GIFVideoArgs(in, out string) []string {
+// GIFToMP4Args builds the ffmpeg command for GIF → MP4.
+func GIFToMP4Args(in, out string) []string {
 	return append(start(in),
 		"-vf", "format=rgba,split[fg][b];[b]drawbox=c=white:t=fill[bg];[bg][fg]overlay=format=rgb,"+ // transparent parts white
 			"scale=trunc(iw/2)*2:trunc(ih/2)*2,"+ // H.264 needs an even width and height
 			"format=yuv420p", // colour format all players support
 		"-c:v", "libx264", "-crf", "20", // H.264, good quality
+		"-fps_mode", "vfr", // keep each frame's own duration
 		"-an",                     // a GIF has no sound
 		"-movflags", "+faststart", // starts playing before fully loaded
 		out)
@@ -584,8 +617,12 @@ func IconArgs(in, out string, orientation int) []string {
 	var maps []string
 	for i, size := range iconSizes {
 		n := strconv.Itoa(i)
-		graph += ";[s" + n + "]scale=" + size + ":" + size + ":force_original_aspect_ratio=decrease," + // fit inside
-			"pad=" + size + ":" + size + ":-1:-1:color=0x00000000[o" + n + "]" // centre on a transparent square
+		// Fit inside the square, keeping the proportions (at least 1 px, so
+		// very wide or tall pictures work too)...
+		fit := "scale='if(gte(iw,ih)," + size + ",max(1,round(" + size + "*iw/ih)))'" +
+			":'if(gte(iw,ih),max(1,round(" + size + "*ih/iw))," + size + ")'"
+		// ...and centre it on a transparent square.
+		graph += ";[s" + n + "]" + fit + ",pad=" + size + ":" + size + ":-1:-1:color=0x00000000[o" + n + "]"
 		maps = append(maps, "-map", "[o"+n+"]")
 	}
 	args := []string{

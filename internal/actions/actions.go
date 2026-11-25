@@ -75,7 +75,7 @@ var all = map[string]Action{
 // videoExts and audioExts are the video and audio types QuickConvert understands.
 var (
 	videoExts = []string{".mov", ".mp4", ".m4v", ".mkv", ".avi", ".webm", ".wmv",
-		".3gp", ".mts", ".m2ts", ".mpg", ".flv"}
+		".3gp", ".mts", ".m2ts", ".mpg", ".mpeg", ".flv"}
 	audioExts = []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus",
 		".aiff", ".aif", ".amr"}
 )

@@ -155,7 +155,7 @@ func TestSendToItems(t *testing.T) {
 
 func TestImageSubmenuHasPDF(t *testing.T) {
 	jpg := Submenu(".jpg")
-	if jpg[len(jpg)-2] != (MenuItem{"pdf", "PDF"}) {
+	if !reflect.DeepEqual(ids(jpg), []string{"png", "webp", "pdf", "ico"}) {
 		t.Errorf(".jpg = %v", jpg)
 	}
 	for _, it := range Submenu(".pdf") {
@@ -187,7 +187,7 @@ func TestWhatsAppAction(t *testing.T) {
 // Formats added in 0.4: more video, audio and picture types, GIF → MP4,
 // icons, SVG and EPUB.
 func TestMoreFormats(t *testing.T) {
-	for _, ext := range []string{".m4v", ".3gp", ".mts", ".m2ts", ".mpg", ".flv"} {
+	for _, ext := range []string{".m4v", ".3gp", ".mts", ".m2ts", ".mpg", ".mpeg", ".flv"} {
 		if got := ids(Submenu(ext)); !reflect.DeepEqual(got, []string{"mp4", "whatsapp", "mp3", "m4a", "gif"}) {
 			t.Errorf("%s = %v", ext, got)
 		}
@@ -197,8 +197,8 @@ func TestMoreFormats(t *testing.T) {
 			t.Errorf("%s = %v", ext, got)
 		}
 	}
-	for _, ext := range []string{".tif", ".tiff", ".avif", ".jpg"} {
-		if got := ids(Submenu(ext)); !reflect.DeepEqual(got, []string{"png", "jpg", "webp", "pdf", "ico"}) && ext != ".jpg" {
+	for _, ext := range []string{".tif", ".tiff", ".avif"} {
+		if got := ids(Submenu(ext)); !reflect.DeepEqual(got, []string{"png", "jpg", "webp", "pdf", "ico"}) {
 			t.Errorf("%s = %v", ext, got)
 		}
 	}

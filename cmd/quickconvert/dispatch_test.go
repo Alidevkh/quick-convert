@@ -119,13 +119,14 @@ func TestNewFormatRouting(t *testing.T) {
 		id, ext string
 		want    app.Handler
 	}{
-		{"mp4", ".gif", media.GIFVideo},
+		{"mp4", ".gif", media.GIFToMP4},
 		{"ico", ".png", media.Icon},
 		{"ico", ".heic", media.Icon},
 		{"png", ".svg", pdf.SVG},
-		{"pdf", ".epub", pdf.EPUB},
+		{"pdf", ".epub", pdf.ToPDF},
+		{"pdf", ".tiff", pdf.ToPDF},
 		{"md", ".epub", pdfmd.Convert},
-		{"pdf", ".tif", imagepdf.Convert},
+		{"pdf", ".avif", imagepdf.Convert},
 		{"png", ".avif", media.Image},
 		{"mp4", ".mts", media.Video},
 		{"mp3", ".amr", media.Audio},

@@ -741,7 +741,7 @@ func TestGIFToMP4(t *testing.T) {
 	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=10:s=101x81",
 		"-vf", "format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(gt(X,50),0,255)',"+
 			"split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128", in) // right half transparent
-	r, err := convert(t, GIFVideo, in, "mp4")
+	r, err := convert(t, GIFToMP4, in, "mp4")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -831,5 +831,88 @@ func TestIconRotated(t *testing.T) {
 	}
 	if _, err := convert(t, Icon, in, "ico"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Camcorder and DVD videos are often interlaced (comb lines on movement)
+// and use non-square pixels: both are fixed for WhatsApp and GIF.
+func TestInterlacedAndWidePixels(t *testing.T) {
+	i := Info{HasVideo: true, VideoCodec: "h264", FieldOrder: "tt"}
+	for name, args := range map[string][]string{"whatsapp": WhatsAppArgs("in.mts", "out.mp4", i), "gif": GIFArgs("in.mts", "out.gif", i)} {
+		a := strings.Join(args, " ")
+		if !strings.Contains(a, "bwdif") || !strings.Contains(a, "scale=iw*sar:ih,setsar=1") {
+			t.Errorf("%s: %s", name, a)
+		}
+	}
+	if strings.Contains(strings.Join(WhatsAppArgs("in.mov", "out.mp4", Info{FieldOrder: "progressive"}), " "), "bwdif") {
+		t.Error("progressive video must not be deinterlaced")
+	}
+}
+
+func TestGIFFromWidePixelVideo(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "dvd.mpg")
+	// 120x90 stored, shown 4:3 wider (160x90), interlaced.
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:s=120x90", "-vf", "setsar=4/3,setfield=tff",
+		"-c:v", "mpeg2video", "-flags", "+ildct+ilme", in)
+	r, err := convert(t, Video, in, "gif")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 160 || h != 90 {
+		t.Errorf("GIF %dx%d, want 160x90", w, h)
+	}
+}
+
+// .m4v files can hold HEVC, which ffmpeg's own ".m4v" (iPod) writer refuses.
+func TestCleanM4VWithHEVC(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "movie.m4v")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:s=176x144", "-c:v", "libx265",
+		"-x265-params", "log-level=error", "-tag:v", "hvc1", "-f", "mp4", "-metadata", "title=Private", in)
+	r, err := convert(t, Clean, in, "clean")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := testutil.Codecs(t, r.Outputs[0]); c["video"] != "hevc" {
+		t.Errorf("codecs %v", c)
+	}
+}
+
+// AIFF covers are kept like other music covers.
+func TestCleanAIFFKeepsCover(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	cover := testutil.MakeImage(t, t.TempDir(), "c.png", 32, 32, false)
+	in := filepath.Join(dir, "song.aiff")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=d=1", "-i", cover, "-map", "0", "-map", "1",
+		"-c:a", "pcm_s16be", "-c:v", "png", "-disposition:v", "attached_pic", "-write_id3v2", "1", "-metadata", "artist=Someone", in)
+	if c := testutil.Codecs(t, in); c["video"] != "png" {
+		t.Fatalf("test file has no cover: %v", c)
+	}
+	r, err := convert(t, Clean, in, "clean")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := testutil.Codecs(t, r.Outputs[0]); c["video"] != "png" {
+		t.Errorf("cover lost: %v", c)
+	}
+	if tags := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "format_tags", "-of", "compact", r.Outputs[0]); strings.Contains(tags, "Someone") {
+		t.Errorf("tags still present: %s", tags)
+	}
+}
+
+// Very wide or tall pictures still make every icon size (at least 1 px).
+func TestIconVeryWide(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe", "exiftool")
+	in := testutil.MakeImage(t, t.TempDir(), "banner.png", 800, 20, false)
+	r, err := convert(t, Icon, in, "ico")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0", r.Outputs[0]), "\n"); n != 4 {
+		t.Errorf("%d sizes, want 4", n)
 	}
 }

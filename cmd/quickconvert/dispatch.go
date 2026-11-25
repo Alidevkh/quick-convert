@@ -34,10 +34,10 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 		return pdf.Shrink
 	case ext == ".svg": // drawing to PNG
 		return pdf.SVG
-	case ext == ".epub" && a.ID == "pdf": // e-book to PDF (to MD: below, like a PDF)
-		return pdf.EPUB
+	case a.ID == "pdf" && (ext == ".epub" || ext == ".tif" || ext == ".tiff"): // e-book, or every page of a scan
+		return pdf.ToPDF // (EPUB to MD: below, like a PDF)
 	case ext == ".gif" && a.ID == "mp4": // animated GIF to video
-		return media.GIFVideo
+		return media.GIFToMP4
 	case a.ID == "ico":
 		return media.Icon
 	case a.ID == "pdf" || a.ID == "imgpdf": // photo(s) to PDF

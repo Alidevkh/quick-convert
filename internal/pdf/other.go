@@ -1,7 +1,7 @@
 package pdf
 
 // This file converts the other document types MuPDF can read: SVG
-// drawings and EPUB e-books.
+// drawings, EPUB e-books and multi-page TIFF scans.
 
 import (
 	"context"
@@ -28,10 +28,15 @@ func SVG(ctx context.Context, j app.Job) (app.Result, error) {
 	return save(j, "out.png", ".png")
 }
 
-// EPUB turns an e-book into a PDF (text stays selectable).
-func EPUB(ctx context.Context, j app.Job) (app.Result, error) {
+// ToPDF turns an EPUB e-book (text stays selectable) or a TIFF scan (every
+// page, not only the first) into a PDF.
+func ToPDF(ctx context.Context, j app.Job) (app.Result, error) {
 	if _, err := j.Eng.Run(ctx, j.Work.Dir, "mutool", "convert", "-o", "out.pdf", j.Work.In); err != nil {
-		return app.Result{}, &app.UserError{Msg: "Couldn't read this e-book (it may be protected)", Err: err}
+		msg := "Couldn't read this file"
+		if j.Ext == ".epub" {
+			msg = "Couldn't read this e-book (it may be protected)"
+		}
+		return app.Result{}, &app.UserError{Msg: msg, Err: err}
 	}
 	return save(j, "out.pdf", ".pdf")
 }

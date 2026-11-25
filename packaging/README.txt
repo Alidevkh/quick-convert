@@ -46,7 +46,7 @@ the same time; the rest wait their turn.
 
 WHAT EACH OPTION DOES
 ---------------------
-Videos (.mov .mp4 .m4v .mkv .avi .webm .wmv .3gp .mts .m2ts .mpg .flv)
+Videos (.mov .mp4 .m4v .mkv .avi .webm .wmv .3gp .mts .m2ts .mpg .mpeg .flv)
   MP4 (full quality, for editing)
                     For editing programs (Premiere, CapCut, DaVinci...).
                     iPhone and most phone videos are repackaged in seconds,
@@ -60,7 +60,8 @@ Videos (.mov .mp4 .m4v .mkv .avi .webm .wmv .3gp .mts .m2ts .mpg .flv)
                     on WhatsApp: H.264, at most 1080p, iPhone HDR colours
                     converted so they look right everywhere. Slower than MP4
                     (the video is re-compressed). Saved as "trip (WhatsApp).mp4",
-                    without location or other hidden information.
+                    without location or other hidden information. Camcorder
+                    and DVD videos are also de-interlaced (no comb lines).
   MP3 (audio only)  The sound track, 192 kbps.
   M4A (audio only)  The sound track as AAC (iPhone sound is copied, no loss).
   GIF               Animated, 15 frames per second, at most 480 pixels wide.
@@ -81,8 +82,9 @@ Pictures (.png .jpg .jpeg .webp .bmp .heic .gif .tif .tiff .avif)
                     are not square get a transparent border; nothing is cut.
   MP4 (video)       (GIFs only) The animation as a video, which plays in
                     every app. Transparent parts become white.
-  GIFs and multi-page TIFF scans: PNG, JPG, WEBP and PDF use the first
-  picture only.
+  TIFF scans with several pages: PDF keeps every page; PNG, JPG and WEBP
+  use the first page. Animated GIFs: PNG, JPG, WEBP and PDF use the first
+  picture.
   Remove metadata   Removes GPS location, camera, dates and other hidden
                     information. Keeps the picture quality, the rotation and
                     the colours exactly the same.
