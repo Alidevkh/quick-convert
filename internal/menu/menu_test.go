@@ -181,3 +181,16 @@ func TestInstallUnblocksInstalledFiles(t *testing.T) {
 		t.Error("install.cmd must unblock the installed files after copying and before making shortcuts")
 	}
 }
+
+// cmd.exe reads .cmd files in the old OEM code page, so any non-ASCII
+// character (like "…") would show up garbled in the menu.
+func TestScriptsAreASCII(t *testing.T) {
+	for name, s := range map[string]string{"install": InstallScript(), "uninstall": UninstallScript()} {
+		for i, r := range s {
+			if r > 127 {
+				t.Errorf("%s.cmd has non-ASCII %q at byte %d", name, r, i)
+				break
+			}
+		}
+	}
+}

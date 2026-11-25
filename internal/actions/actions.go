@@ -65,9 +65,16 @@ var all = map[string]Action{
 	"shrink":   {ID: "shrink", Label: "Reduce size", Kind: Heavy, OutExt: ".pdf", Tag: " (small)"},
 	"pdf":      {ID: "pdf", Label: "PDF", Kind: Light, OutExt: ".pdf"},
 	"split":    {ID: "split", Label: "Split into pages", Kind: Light, OutExt: ".pdf"},
+	"extract":  {ID: "extract", Label: "Extract pages", Kind: Light, OutExt: ".pdf"},
 	"imgpdf":   {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
 	"merge":    {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
 }
+
+// videoExts and audioExts are the video and audio types QuickConvert understands.
+var (
+	videoExts = []string{".mov", ".mp4", ".mkv", ".avi", ".webm", ".wmv"}
+	audioExts = []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus"}
+)
 
 // imageExts are the picture types QuickConvert understands.
 var imageExts = []string{".png", ".jpg", ".jpeg", ".webp", ".bmp", ".heic"}
@@ -87,7 +94,7 @@ var groups = []group{
 		},
 	},
 	{ // audio
-		exts:  []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus"},
+		exts:  audioExts,
 		items: []MenuItem{{"mp3", "MP3"}, {"m4a", "M4A"}, {"wav", "WAV"}, {"flac", "FLAC"}, {"ogg", "OGG"}},
 	},
 	{ // image
@@ -112,7 +119,8 @@ var groups = []group{
 // inside "Convert to").
 var extras = []group{
 	{exts: []string{".jpg", ".jpeg", ".png", ".heic", ".webp"}, items: []MenuItem{{"clean", "Remove metadata"}}},
-	{exts: []string{".pdf"}, items: []MenuItem{{"shrink", "Reduce size"}, {"split", "Split into pages"}}},
+	{exts: []string{".pdf"}, items: []MenuItem{{"shrink", "Reduce size"}, {"split", "Split into pages"}, {"extract", "Extract pages..."}}},
+	{exts: append(append([]string{}, videoExts...), audioExts...), items: []MenuItem{{"clean", "Remove metadata"}}},
 }
 
 // codeMenuItems creates the ".py", ".m", ... entries and registers a
@@ -240,3 +248,7 @@ func SendToFor(id string) (SendTo, bool) {
 	}
 	return SendTo{}, false
 }
+
+// IsImage reports whether ext is a picture type (used to pick the right
+// "Remove metadata" converter: photos and videos/audio differ).
+func IsImage(ext string) bool { return contains(imageExts, strings.ToLower(ext)) }

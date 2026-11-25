@@ -161,7 +161,7 @@ func WhatsAppArgs(in, out string, i Info) []string {
 	args := append(start(in),
 		"-map", "0:v:0", // the video...
 		"-map", "0:a:0?", // ...and the main sound track, if there is one
-		"-map_metadata", "0", // keep date/location information
+		"-map_metadata", "-1", // drop all metadata (GPS location, dates, camera): it is for sharing
 	)
 	var filters []string
 	if i.FrameRate > 60.5 {
@@ -323,6 +323,31 @@ func Readable(ctx context.Context, eng *engines.Set, dir, in string) (name strin
 		"-update", "1", // one picture, one file
 		png)
 	return png, 1, err
+}
+
+// Clean saves a copy of a video or audio file without metadata (GPS
+// location, dates, camera, titles...) as "<name> (clean).<ext>". Picture
+// and sound are copied as they are: no quality loss, and the rotation of
+// phone videos is kept. Data tracks (iPhone location/timed metadata) are
+// dropped; a music file's cover picture is kept.
+func Clean(ctx context.Context, j app.Job) (app.Result, error) {
+	out := "out" + j.Ext
+	args := append(start(j.Work.In),
+		"-map", "0:v?", // the picture (or album cover)...
+		"-map", "0:a?", // ...the sound...
+		"-map", "0:s?", // ...and subtitles, but no data tracks
+		"-map_metadata", "-1", // drop all metadata
+		"-map_chapters", "-1", // and chapter titles
+		"-c", "copy", // copy picture and sound as they are
+		out)
+	if _, err := j.Eng.Run(ctx, j.Work.Dir, "ffmpeg", args...); err != nil {
+		return app.Result{}, err
+	}
+	saved, err := j.Work.Commit(out, j.Base+j.Action.Tag, j.Ext) // same type as the original
+	if err != nil {
+		return app.Result{}, err
+	}
+	return app.Result{Outputs: []string{saved}}, nil
 }
 
 // Video converts a video to MP4, MP3 or GIF.

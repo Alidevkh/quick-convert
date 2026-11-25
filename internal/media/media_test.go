@@ -469,3 +469,72 @@ func TestProbeFailureKeepsEngineError(t *testing.T) {
 		t.Errorf("engine error lost: %v", err)
 	}
 }
+
+// A phone video with GPS location, date and camera: all removed, picture
+// and sound untouched, still portrait.
+func TestCleanVideoMetadata(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	flat := filepath.Join(t.TempDir(), "flat.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=10:s=320x240",
+		"-f", "lavfi", "-i", "sine=d=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
+		"-metadata", "location=+25.2048+055.2708/", "-metadata", "creation_time=2026-01-01T10:00:00Z",
+		"-metadata", "make=Apple", "-metadata", "model=iPhone 15", flat)
+	in := filepath.Join(dir, "IMG_0001.MOV")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-display_rotation", "90", "-i", flat, "-c", "copy", "-map_metadata", "0", in)
+
+	r, err := convert(t, Clean, in, "clean")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "IMG_0001 (clean).MOV") && r.Outputs[0] != filepath.Join(dir, "IMG_0001 (clean).mov") {
+		t.Fatalf("output %v", r.Outputs)
+	}
+	tags := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "format_tags:stream_tags", "-of", "compact", r.Outputs[0])
+	for _, gone := range []string{"location", "creation_time", "make", "model", "iPhone"} {
+		if strings.Contains(tags, gone) {
+			t.Errorf("%q still present: %s", gone, tags)
+		}
+	}
+	if rot := strings.TrimSpace(testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "stream_side_data=rotation", "-of", "csv=p=0", r.Outputs[0])); !strings.HasPrefix(rot, "90") && !strings.HasPrefix(rot, "-90") {
+		t.Errorf("rotation lost: %q", rot)
+	}
+	if c := testutil.Codecs(t, r.Outputs[0]); c["video"] != "h264" || c["audio"] != "aac" {
+		t.Errorf("codecs %v", c)
+	}
+	if orig := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "format_tags=location", "-of", "csv=p=0", in); !strings.Contains(orig, "25.2048") {
+		t.Error("original was modified")
+	}
+}
+
+func TestCleanAudioMetadata(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "song.mp3")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=d=1", "-c:a", "libmp3lame",
+		"-metadata", "artist=Someone", "-metadata", "title=Private", in)
+	r, err := convert(t, Clean, in, "clean")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "format_tags", "-of", "compact", r.Outputs[0])
+	if strings.Contains(tags, "Someone") || strings.Contains(tags, "Private") {
+		t.Errorf("tags still present: %s", tags)
+	}
+}
+
+// The WhatsApp MP4 is for sharing: no location or other metadata.
+func TestWhatsAppDropsMetadata(t *testing.T) {
+	testutil.Need(t, "ffmpeg", "ffprobe")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "trip.mov")
+	testutil.Run(t, "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:r=10:s=320x240",
+		"-c:v", "libx264", "-pix_fmt", "yuv420p", "-metadata", "location=+25.2048+055.2708/", in)
+	r, err := convert(t, Video, in, "whatsapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tags := testutil.Run(t, "ffprobe", "-v", "error", "-show_entries", "format_tags", "-of", "compact", r.Outputs[0]); strings.Contains(tags, "location") {
+		t.Errorf("location still present: %s", tags)
+	}
+}

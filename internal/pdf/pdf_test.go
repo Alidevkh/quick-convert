@@ -313,3 +313,65 @@ func TestSplitEncrypted(t *testing.T) {
 		t.Errorf("code %d body %q", code, body)
 	}
 }
+
+// withAnswer makes the "Which pages?" box answer as given during a test.
+func withAnswer(t *testing.T, answer string, ok bool) {
+	t.Helper()
+	old := AskPages
+	AskPages = func(pages int) (string, bool) { return answer, ok }
+	t.Cleanup(func() { AskPages = old })
+}
+
+func TestExtractPages(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	withAnswer(t, "5, 1-2", true)
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 6)
+	r, err := testutil.RunHandler(t, Extract, in, "extract")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(r.Outputs); len(got) != 1 || got[0] != "doc (pages 5, 1-2).pdf" {
+		t.Fatalf("outputs %v", got)
+	}
+	text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", r.Outputs[0])
+	p5, p1, p2 := strings.Index(text, "Doc page 5"), strings.Index(text, "Doc page 1"), strings.Index(text, "Doc page 2")
+	if p5 < 0 || !(p5 < p1 && p1 < p2) || strings.Contains(text, "Doc page 3") {
+		t.Errorf("wrong pages or order:\n%s", text)
+	}
+}
+
+func TestExtractCancelled(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	withAnswer(t, "", false)
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 3)
+	_, err := testutil.RunHandler(t, Extract, in, "extract")
+	var info *app.Info
+	if !errors.As(err, &info) || info.Msg != "" {
+		t.Errorf("err = %v, want a silent cancel", err)
+	}
+}
+
+func TestExtractOutOfRange(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	withAnswer(t, "2-9", true)
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 3)
+	_, err := testutil.RunHandler(t, Extract, in, "extract")
+	var ue *app.UserError
+	if !errors.As(err, &ue) || ue.Msg != "Pages must be between 1 and 3" {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestExtractEncrypted(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	withAnswer(t, "1", true)
+	dir := t.TempDir()
+	in := testutil.MakeEncryptedPDF(t, dir, "secret.pdf")
+	code, body := runThroughApp(t, "extract", in, Extract)
+	if code != 1 || body != "This PDF is password-protected" {
+		t.Errorf("code %d body %q", code, body)
+	}
+}

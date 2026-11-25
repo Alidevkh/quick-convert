@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"quickconvert/internal/app"
 )
@@ -14,19 +13,9 @@ import (
 // Split saves every page as its own PDF next to the original:
 // "report-1.pdf", "report-2.pdf"... Pages are copied as they are.
 func Split(ctx context.Context, j app.Job) (app.Result, error) {
-	// "mutool show" does not fail on a password-protected PDF (it just
-	// says 1 page), so first check the PDF can really be opened.
-	if _, err := j.Eng.Run(ctx, j.Work.Dir, "mutool", "info", j.Work.In); err != nil {
-		return app.Result{}, Friendly(err)
-	}
-	out, err := j.Eng.Run(ctx, j.Work.Dir, "mutool", "show", j.Work.In,
-		"trailer/Root/Pages/Count") // the number of pages, e.g. "12"
+	pages, err := pageCount(ctx, j)
 	if err != nil {
-		return app.Result{}, Friendly(err)
-	}
-	pages, err := strconv.Atoi(strings.TrimSpace(string(out)))
-	if err != nil {
-		return app.Result{}, &app.UserError{Msg: "Couldn't count the pages of this PDF", Err: err}
+		return app.Result{}, err
 	}
 	if pages < 2 {
 		return app.Result{}, &app.UserError{Msg: "This PDF has only one page"}

@@ -6,6 +6,7 @@ package platform
 
 import (
 	"encoding/base64"
+	"fmt"
 	"unicode/utf16"
 )
 
@@ -35,4 +36,19 @@ func encodeCommand(script string) string {
 		bytes = append(bytes, byte(u), byte(u>>8))
 	}
 	return base64.StdEncoding.EncodeToString(bytes)
+}
+
+// AskScript shows Windows' standard input box and prints what the user
+// typed (nothing if they pressed Cancel). Texts come from QC_PROMPT and
+// QC_TITLE; the answer is printed as UTF-8 so Arabic digits survive.
+const AskScript = `
+Add-Type -AssemblyName Microsoft.VisualBasic
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$answer = [Microsoft.VisualBasic.Interaction]::InputBox($env:QC_PROMPT, $env:QC_TITLE, '')
+[Console]::Out.Write($answer)
+`
+
+// AskPrompt is the question shown in the "Which pages?" box.
+func AskPrompt(pages int) string {
+	return fmt.Sprintf("Which pages? (1-%d)\n\nExamples:  1-3, 5   or   5, 1-3", pages)
 }

@@ -128,8 +128,8 @@ func Codecs(t *testing.T, path string) map[string]string {
 	out := Run(t, "ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name", "-of", "csv=p=0", path)
 	codecs := map[string]string{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		parts := strings.Split(line, ",")
-		if len(parts) == 2 {
+		parts := strings.Split(line, ",") // rotated videos add an empty extra field
+		if len(parts) >= 2 {
 			codecs[parts[1]] = parts[0]
 		}
 	}

@@ -19,9 +19,12 @@ Right-click a file. On Windows 11, click "Show more options" first
 (or hold Shift while right-clicking). Then choose:
 
   Convert to >     the formats that make sense for that file
-  Remove metadata  (photos) saves "photo (clean).jpg"
+  Remove metadata  (photos, videos, audio) removes GPS location, dates, camera
+                   and titles; saves "photo (clean).jpg", "trip (clean).mov"...
   Reduce size      (PDFs) saves "report (small).pdf"
   Split into pages (PDFs) every page as its own PDF: report-1.pdf, report-2.pdf...
+  Extract pages... (PDFs) asks which pages (e.g. 1-3, 5) and saves them, in that
+                   order, as one PDF: "report (pages 1-3, 5).pdf"
 
 A Windows notification tells you when it starts and when it is done.
 Notifications show "Windows PowerShell" as the sender; that is normal.
@@ -49,7 +52,8 @@ Videos (.mov .mp4 .mkv .avi .webm .wmv)
                     Plays on every phone, computer and browser, ready to send
                     on WhatsApp: H.264, at most 1080p, iPhone HDR colours
                     converted so they look right everywhere. Slower than MP4
-                    (the video is re-compressed). Saved as "trip (WhatsApp).mp4".
+                    (the video is re-compressed). Saved as "trip (WhatsApp).mp4",
+                    without location or other hidden information.
   MP3 (audio only)  The sound track, 192 kbps.
   M4A (audio only)  The sound track as AAC (iPhone sound is copied, no loss).
   GIF               Animated, 15 frames per second, at most 480 pixels wide.

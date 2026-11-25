@@ -21,6 +21,7 @@ import (
 	"quickconvert/internal/actions"
 	"quickconvert/internal/app"
 	"quickconvert/internal/engines"
+	"quickconvert/internal/pdf"
 	"quickconvert/internal/platform"
 )
 
@@ -40,6 +41,8 @@ func main() {
 		platform.Notify("QuickConvert", "Usage: quickconvert <action> <file> (Send to actions: <file> <file>...)")
 		os.Exit(app.ExitUsage)
 	}
+
+	pdf.AskPages = platform.AskPages // the "Which pages?" box for Extract pages...
 
 	logFile := openLog()
 	defer logFile.Close()

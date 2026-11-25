@@ -39,6 +39,9 @@
 | `internal/platform/` | أشياء خاصة بويندوز: الإشعارات، وتحديد مهمتين ثقيلتين كحد أقصى. |
 | `internal/imagepdf/imagepdf.go` | صور ← PDF (صفحة لكل صورة)، من Send to ومن Convert to. |
 | `internal/pdfwriter/pdfwriter.go` | يكتب ملف PDF بنفسه من صور JPEG، بدون إعادة ضغطها. |
+| `internal/pdf/split.go` | تقسيم PDF: كل صفحة في ملف. |
+| `internal/pdf/extract.go`، `pages.go` | استخراج صفحات مختارة في ملف واحد، وقراءة نص مثل «1-3, 5». |
+| `internal/platform/ask_windows.go` | نافذة «Which pages?» الصغيرة في ويندوز. |
 | `internal/pdf/merge.go` | دمج عدة ملفات PDF في ملف واحد (mutool). |
 | `internal/app/natural.go` | ترتيب الملفات «الطبيعي»: IMG_9 قبل IMG_10. |
 | `internal/menu/menu.go` | يكتب `install.cmd` و`uninstall.cmd` من الجدول الرئيسي. |

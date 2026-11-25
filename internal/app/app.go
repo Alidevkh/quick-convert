@@ -205,7 +205,9 @@ func finish(d Deps, result Result, err error, fail func(error) int, folder strin
 	var notice *Info
 	switch {
 	case errors.As(err, &notice):
-		d.Notify("QuickConvert", notice.Msg)
+		if notice.Msg != "" { // an empty Info means "cancelled": say nothing
+			d.Notify("QuickConvert", notice.Msg)
+		}
 		return ExitOK
 	case err != nil:
 		return fail(err)

@@ -27,3 +27,17 @@ func TestEncodeCommandIsUTF16Base64(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// The "Which pages?" box: text comes from environment variables (never
+// pasted into the script), and the answer is printed as UTF-8 so Arabic
+// digits survive.
+func TestAskScript(t *testing.T) {
+	for _, want := range []string{"$env:QC_PROMPT", "$env:QC_TITLE", "InputBox", "UTF8"} {
+		if !strings.Contains(AskScript, want) {
+			t.Errorf("AskScript does not contain %s", want)
+		}
+	}
+	if got := AskPrompt(12); got != "Which pages? (1-12)\n\nExamples:  1-3, 5   or   5, 1-3" {
+		t.Errorf("prompt = %q", got)
+	}
+}

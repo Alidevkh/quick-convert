@@ -22,8 +22,12 @@ func handlerFor(a actions.Action, ext string) app.Handler {
 	switch {
 	case a.ID == "txt" || strings.HasPrefix(a.ID, "code-"):
 		return textcopy.Copy
-	case a.ID == "clean":
+	case a.ID == "clean" && actions.IsImage(ext):
 		return photo.Clean
+	case a.ID == "clean": // video or audio
+		return media.Clean
+	case a.ID == "extract":
+		return pdf.Extract
 	case a.ID == "split":
 		return pdf.Split
 	case a.ID == "shrink":
