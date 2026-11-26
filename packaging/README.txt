@@ -102,7 +102,9 @@ E-books (.epub)
   Protected (DRM) e-books from online stores can't be converted.
 
 PDF
-  PNG, JPG          One picture per page (report-1.png, report-2.png...).
+  PNG, JPG          One picture per page, in a new folder named after the
+                    PDF: report\report-1.png, report\report-2.png...
+                    (A one-page PDF gives report.png next to the PDF.)
   MD                The text as Markdown, for AI tools: headings, bold,
                     lists and simple tables are kept; page numbers and
                     repeated headers are removed. Scanned PDFs (pictures of

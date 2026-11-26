@@ -371,3 +371,20 @@ func TestNoStartNotificationForInteractiveAction(t *testing.T) {
 		t.Errorf("log should say cancelled: %q", log.String())
 	}
 }
+
+// The notification names the folder the results are in, which is not
+// always the original's folder (PDF pages go in their own folder).
+func TestDoneNamesResultFolder(t *testing.T) {
+	input, rec, _, d := setup(t, "x.pdf", commitCopy)
+	sub := filepath.Join(filepath.Dir(input), "x")
+	d.Handlers = func(actions.Action, string) Handler {
+		return func(ctx context.Context, j Job) (Result, error) {
+			return Result{Outputs: []string{filepath.Join(sub, "x-1.png"), filepath.Join(sub, "x-2.png")}}, nil
+		}
+	}
+	Run(context.Background(), "png", input, d)
+	calls := rec.all()
+	if len(calls) == 0 || calls[len(calls)-1][1] != "Saved in "+sub {
+		t.Errorf("notifications: %v", calls)
+	}
+}

@@ -191,6 +191,34 @@ func (w *Work) CommitPages(tmpNames []string, base, ext string) ([]string, error
 	return nil, fmt.Errorf("no free file names for %s pages", base)
 }
 
+// CommitPagesInFolder saves the pages of a multi-page result in a new
+// folder next to the original, named like it: "report\report-1.png",
+// "report\report-2.png"... If something called "report" already exists,
+// the folder becomes "report (1)", and so on: an existing folder is never
+// written into.
+func (w *Work) CommitPagesInFolder(tmpNames []string, base, ext string) ([]string, error) {
+	for n := 0; n < maxTries; n++ {
+		folder := filepath.Join(w.Parent, Candidate(base, n, ""))
+		if err := os.Mkdir(folder, 0o755); err != nil {
+			if os.IsExist(err) {
+				continue // name taken (by a folder or a file): try the next number
+			}
+			return nil, err
+		}
+		var saved []string
+		for i, tmp := range tmpNames {
+			dst := filepath.Join(folder, PageName(base, 0, i+1, ext))
+			if err := w.claim(filepath.Join(w.Dir, tmp), dst); err != nil {
+				return saved, err
+			}
+			os.Remove(filepath.Join(w.Dir, tmp))
+			saved = append(saved, dst)
+		}
+		return saved, nil
+	}
+	return nil, fmt.Errorf("no free folder name for %s", base)
+}
+
 // allPagesFree reports whether none of the page names for number n exist.
 func (w *Work) allPagesFree(pages int, base string, n int, ext string) bool {
 	for i := 1; i <= pages; i++ {

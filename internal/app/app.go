@@ -219,6 +219,9 @@ func finish(d Deps, result Result, err error, fail func(error) int, folder strin
 	case err != nil:
 		return fail(err)
 	}
+	if len(result.Outputs) > 0 {
+		folder = filepath.Dir(result.Outputs[0]) // e.g. the folder made for PDF pages
+	}
 	d.Notify(doneTitle(result), "Saved in "+folder)
 	return ExitOK
 }

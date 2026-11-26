@@ -61,6 +61,46 @@ func TestRenderMultiPage(t *testing.T) {
 	if got := strings.Join(names(r.Outputs), ","); got != "doc-1.png,doc-2.png,doc-3.png" {
 		t.Errorf("outputs %s", got)
 	}
+	// The pages go in a folder named after the PDF, not loose next to it.
+	if folder := filepath.Dir(r.Outputs[0]); folder != filepath.Join(dir, "doc") {
+		t.Errorf("pages saved in %s, want %s", folder, filepath.Join(dir, "doc"))
+	}
+}
+
+// A folder (or file) with the PDF's name already exists: a new folder
+// "doc (1)" is made; nothing already there is touched.
+func TestRenderPagesFolderNameTaken(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakePDF(t, dir, "doc.pdf", 2)
+	os.Mkdir(filepath.Join(dir, "doc"), 0o755)
+	os.WriteFile(filepath.Join(dir, "doc", "doc-1.png"), []byte("mine"), 0o644)
+	os.WriteFile(filepath.Join(dir, "doc (1)"), []byte("a file, not a folder"), 0o644)
+	r, err := testutil.RunHandler(t, Render, in, "jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(dir, "doc (2)")
+	if got := strings.Join(r.Outputs, ","); got != filepath.Join(want, "doc-1.jpg")+","+filepath.Join(want, "doc-2.jpg") {
+		t.Errorf("outputs %s", got)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "doc", "doc-1.png")); string(b) != "mine" {
+		t.Error("an existing file was changed")
+	}
+}
+
+// A one-page PDF gives one picture, saved next to the PDF (no folder).
+func TestRenderOnePageNoFolder(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakePDF(t, dir, "one.pdf", 1)
+	r, err := testutil.RunHandler(t, Render, in, "png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "one.png") {
+		t.Errorf("outputs %v", r.Outputs)
+	}
 }
 
 func TestRenderManyPagesInOrder(t *testing.T) {
