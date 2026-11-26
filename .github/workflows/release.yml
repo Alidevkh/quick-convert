@@ -1,0 +1,50 @@
+# The "Publish release" button: Actions tab > Publish release > Run workflow.
+#
+# Does exactly what you would do by hand:
+#   1. scripts/fetch-engines.sh   download the Windows engines
+#   2. scripts/release.sh "notes" run the tests, build QuickConvert.zip and
+#                                 publish the release v<VERSION> with it
+#
+# Before running it, set VERSION in scripts/build.sh to the new version.
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: What changed in this version (shown on the release page)
+        required: true
+        default: first public release
+
+permissions:
+  contents: write # to create the release and its tag
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # ffmpeg, mutool, gs and exiftool let every test run before the
+      # release is built; 7z unpacks the Ghostscript installer.
+      - name: Install test tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg mupdf-tools ghostscript libimage-exiftool-perl p7zip-full zip
+
+      - name: Download the Windows engines
+        run: scripts/fetch-engines.sh
+
+      - name: Build and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+        run: scripts/release.sh "$NOTES"
