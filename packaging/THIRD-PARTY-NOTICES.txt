@@ -1,0 +1,33 @@
+Third-party programs included with QuickConvert
+===============================================
+
+QuickConvert itself is MIT-licensed (see LICENSE.txt). It runs the free
+programs below as separate programs ("engines"); they are not part of
+QuickConvert's code and keep their own licenses. Their source code is
+available at the addresses given.
+
+
+FFmpeg 9.1 (ffmpeg.exe, ffprobe.exe)
+  Build: "essentials" build by Gyan Doshi, https://www.gyan.dev/ffmpeg/builds/
+  License: GNU General Public License v3 (built with --enable-gpl --enable-version3)
+  Source: https://ffmpeg.org/download.html  and  https://github.com/FFmpeg/FFmpeg
+  The build's own source and library list: https://www.gyan.dev/ffmpeg/builds/
+
+MuPDF 1.28.5 (mutool.exe)
+  By Artifex Software, https://mupdf.com
+  License: GNU Affero General Public License v3
+  Source: https://mupdf.com/releases  (mupdf-1.28.5-source.tar.gz)
+
+Ghostscript 10.04.0 (gswin64c.exe, gsdll64.dll)
+  By Artifex Software, https://ghostscript.com
+  License: GNU Affero General Public License v3
+  Source: https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/tag/gs10040
+
+ExifTool (exiftool.exe, exiftool_files\)
+  By Phil Harvey, https://exiftool.org ; Windows package by Oliver Betz
+  License: same terms as Perl (Artistic License or GPL), see exiftool_files\LICENSE
+  Includes Strawberry Perl, see exiftool_files\Licenses_Strawberry_Perl.zip
+  Source: https://exiftool.org
+
+The full texts of the GPL v3 and AGPL v3 are at
+https://www.gnu.org/licenses/gpl-3.0.txt and https://www.gnu.org/licenses/agpl-3.0.txt
