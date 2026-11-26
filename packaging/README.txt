@@ -166,4 +166,4 @@ LICENSE
 -------
 QuickConvert is free software under the MIT License (LICENSE.txt).
 The engines keep their own licenses: see THIRD-PARTY-NOTICES.txt.
-Project page: https://github.com/Alidev29/quick-convert
+Project page: https://github.com/Alidevkh/quick-convert

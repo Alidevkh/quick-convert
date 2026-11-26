@@ -4,7 +4,7 @@ Convert files on Windows straight from the right-click menu: no app to open,
 nothing running in the background. The result is saved next to the original,
 which is never changed or overwritten.
 
-**[⬇ Download QuickConvert.zip](https://github.com/Alidev29/quick-convert/releases/latest/download/QuickConvert.zip)**
+**[⬇ Download QuickConvert.zip](https://github.com/Alidevkh/quick-convert/releases/latest/download/QuickConvert.zip)**
 (Windows 10 / 11, 64-bit · about 140 MB · everything included)
 
 [العربية ↓](#بالعربية)
@@ -97,7 +97,7 @@ engines keep their own licenses (GPL / AGPL / Perl): see
 
 ### التثبيت (دقيقة واحدة)
 
-1. حمّل **[QuickConvert.zip](https://github.com/Alidev29/quick-convert/releases/latest/download/QuickConvert.zip)** وفك ضغطه (زر أيمن ← *Extract All*).
+1. حمّل **[QuickConvert.zip](https://github.com/Alidevkh/quick-convert/releases/latest/download/QuickConvert.zip)** وفك ضغطه (زر أيمن ← *Extract All*).
 2. افتح المجلد وانقر مرتين على **`install.cmd`**.
 
 لا يحتاج صلاحيات المدير ولا إنترنت. بعد التثبيت يمكنك حذف الـ zip والمجلد، فالبرنامج يُنسخ إلى `%LOCALAPPDATA%\QuickConvert`.
