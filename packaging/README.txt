@@ -160,3 +160,10 @@ quickconvert.exe, BEFORE running install.cmd:
 4. ExifTool   https://exiftool.org/  -> "Windows Executable" (64-bit zip)
               Copy "exiftool(-k).exe" and rename it to exiftool.exe,
               and copy the exiftool_files folder next to it.
+
+
+LICENSE
+-------
+QuickConvert is free software under the MIT License (LICENSE.txt).
+The engines keep their own licenses: see THIRD-PARTY-NOTICES.txt.
+Project page: https://github.com/Alidev29/quick-convert
