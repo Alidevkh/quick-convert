@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -33,8 +34,8 @@ func TestInstallCascadeKey(t *testing.T) {
 	for _, want := range []string{
 		`reg add "` + root + `.mov\shell\QuickConvert" /v MUIVerb /d "Convert to" /f >nul`,
 		`reg add "` + root + `.mov\shell\QuickConvert" /v SubCommands /d "" /f >nul`,
-		`reg add "` + root + `.mov\shell\QuickConvert\shell\02mp3" /v MUIVerb /d "MP3 (audio only)" /f >nul`,
-		`reg add "` + root + `.mov\shell\QuickConvert\shell\02mp3" /v MultiSelectModel /d "Player" /f >nul`,
+		`reg add "` + root + `.mov\shell\QuickConvert\shell\03mp3" /v MUIVerb /d "MP3 (audio only)" /f >nul`,
+		`reg add "` + root + `.mov\shell\QuickConvert\shell\03mp3" /v MultiSelectModel /d "Player" /f >nul`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing line:\n%s", want)
@@ -167,5 +168,46 @@ func TestInstallJpgHasPDFEntry(t *testing.T) {
 	want := root + `.jpg\shell\QuickConvert\shell\03pdf\command" /ve /d "\"%DEST%\quickconvert.exe\" pdf \"%%1\""`
 	if !strings.Contains(InstallScript(), want) {
 		t.Errorf("missing:\n%s", want)
+	}
+}
+
+// Files unzipped from a download carry Windows' "from the internet" mark,
+// so SmartScreen stops the Send to shortcuts. The installer removes the
+// mark from QuickConvert's own installed files, after copying them.
+func TestInstallUnblocksInstalledFiles(t *testing.T) {
+	s := InstallScript()
+	unblock := strings.Index(s, `Get-ChildItem -LiteralPath $env:DEST -Recurse | Unblock-File`)
+	copy := strings.Index(s, "robocopy")
+	if unblock < 0 || unblock < copy || unblock > strings.Index(s, "Images to PDF.lnk") {
+		t.Error("install.cmd must unblock the installed files after copying and before making shortcuts")
+	}
+}
+
+// cmd.exe reads .cmd files in the old OEM code page, so any non-ASCII
+// character (like "…") would show up garbled in the menu.
+func TestScriptsAreASCII(t *testing.T) {
+	selftest, err := os.ReadFile("../../packaging/selftest.ps1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, s := range map[string]string{"install": InstallScript(), "uninstall": UninstallScript(),
+		"selftest": SelfTestScript(), "selftest.ps1": string(selftest)} { // Windows PowerShell 5.1 misreads non-ASCII
+		for i, r := range s {
+			if r > 127 {
+				t.Errorf("%s.cmd has non-ASCII %q at byte %d", name, r, i)
+				break
+			}
+		}
+	}
+}
+
+// An entry removed in a newer version (e.g. "Remove metadata" on .mkv) must
+// still be deleted by install (upgrade) and uninstall.
+func TestScriptsDeleteRetiredEntries(t *testing.T) {
+	key := root + `.mkv\shell\QuickConvert.clean`
+	for name, s := range map[string]string{"install": InstallScript(), "uninstall": UninstallScript()} {
+		if !strings.Contains(s, `reg delete "`+key+`"`) {
+			t.Errorf("%s does not delete %s", name, key)
+		}
 	}
 }

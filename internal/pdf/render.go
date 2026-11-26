@@ -18,8 +18,9 @@ import (
 // reasonable file size. An A4 page becomes 1240 x 1754 pixels.
 const dpi = "150"
 
-// Render saves every page of the PDF as a PNG or JPG next to the original:
-// "report.png" for a one-page PDF, "report-1.png", "report-2.png"... otherwise.
+// Render saves every page of the PDF as a PNG or JPG: "report.png" next to
+// the PDF for a one-page PDF; otherwise in a new folder named after the PDF:
+// "report\report-1.png", "report\report-2.png"...
 func Render(ctx context.Context, j app.Job) (app.Result, error) {
 	_, err := j.Eng.Run(ctx, j.Work.Dir, "mutool", "draw",
 		"-q",      // quiet
@@ -49,7 +50,7 @@ func Render(ctx context.Context, j app.Job) (app.Result, error) {
 		}
 		return app.Result{Outputs: []string{saved}}, nil
 	}
-	saved, err := j.Work.CommitPages(pages, j.Base, ext)
+	saved, err := j.Work.CommitPagesInFolder(pages, j.Base, ext) // in a folder named after the PDF
 	if err != nil {
 		return app.Result{}, err
 	}

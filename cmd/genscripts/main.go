@@ -1,4 +1,4 @@
-// genscripts writes install.cmd and uninstall.cmd into a folder.
+// genscripts writes install.cmd, uninstall.cmd and selftest.cmd into a folder.
 // Used by scripts/build.sh:  go run ./cmd/genscripts dist/QuickConvert
 package main
 
@@ -22,6 +22,7 @@ func main() {
 	files := map[string]string{
 		"install.cmd":   menu.InstallScript(),
 		"uninstall.cmd": menu.UninstallScript(),
+		"selftest.cmd":  menu.SelfTestScript(),
 	}
 	for name, text := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {

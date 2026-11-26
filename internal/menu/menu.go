@@ -40,6 +40,10 @@ func InstallScript() string {
 	s.add("")
 	s.add("rem 2. Copy the program files (skipped when run from the install folder).")
 	s.add(`if /I not "%~dp0"=="%DEST%\" robocopy "%~dp0." "%DEST%" /E /NFL /NDL /NJH /NJS /NP >nul`)
+	// Files unzipped from a download carry Windows' "from the internet" mark;
+	// SmartScreen then stops the Send to shortcuts ("unknown publisher").
+	// Remove the mark from QuickConvert's own installed files only.
+	s.add(`powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPath $env:DEST -Recurse | Unblock-File"`)
 	s.add("")
 	s.add("rem 3. Add the right-click menu entries.")
 	for _, ext := range actions.AllExts() {
@@ -60,6 +64,17 @@ func InstallScript() string {
 	s.add("echo Please unzip QuickConvert first, then run install.cmd from the unzipped folder.")
 	s.add("pause")
 	s.add("exit /b 1")
+	return s.String()
+}
+
+// SelfTestScript returns the text of selftest.cmd, which runs the
+// PowerShell self-test (selftest.ps1) next to it.
+func SelfTestScript() string {
+	var s script
+	s.add("@echo off")
+	s.add("rem Installs QuickConvert and tests every conversion on this computer.")
+	s.add(`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0selftest.ps1" %*`)
+	s.add("pause")
 	return s.String()
 }
 
@@ -111,10 +126,28 @@ func addEntries(s *script, ext string) {
 func addDeletes(s *script) {
 	for _, ext := range actions.AllExts() {
 		s.regDelete(classesRoot + ext + `\shell\QuickConvert`)
-		for _, item := range actions.Extras(ext) {
-			s.regDelete(classesRoot + ext + `\shell\QuickConvert.` + item.ActionID)
+		// Every top-level entry on every type, not only today's: an older
+		// version may have added one that no longer exists (e.g.
+		// "Remove metadata" on .mkv).
+		for _, id := range extraIDs() {
+			s.regDelete(classesRoot + ext + `\shell\QuickConvert.` + id)
 		}
 	}
+}
+
+// extraIDs lists every top-level action ID used on any file type.
+func extraIDs() []string {
+	seen := map[string]bool{}
+	var ids []string
+	for _, ext := range actions.AllExts() {
+		for _, item := range actions.Extras(ext) {
+			if !seen[item.ActionID] {
+				seen[item.ActionID] = true
+				ids = append(ids, item.ActionID)
+			}
+		}
+	}
+	return ids
 }
 
 // script builds a Windows batch file. Batch files need CRLF line endings.

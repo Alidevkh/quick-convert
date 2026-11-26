@@ -23,19 +23,19 @@ func labels(items []MenuItem) []string {
 
 func TestSubmenuVideo(t *testing.T) {
 	mov := Submenu(".mov")
-	if got := ids(mov); !reflect.DeepEqual(got, []string{"mp4", "mp3", "gif"}) {
+	if got := ids(mov); !reflect.DeepEqual(got, []string{"mp4", "whatsapp", "mp3", "m4a", "gif"}) {
 		t.Errorf("ids = %v", got)
 	}
-	if got := labels(mov); !reflect.DeepEqual(got, []string{"MP4", "MP3 (audio only)", "GIF"}) {
+	if got := labels(mov); !reflect.DeepEqual(got, []string{"MP4 (full quality, for editing)", "MP4 (WhatsApp / any device)", "MP3 (audio only)", "M4A (audio only)", "GIF"}) {
 		t.Errorf("labels = %v", got)
 	}
-	if got := ids(Submenu(".mp4")); !reflect.DeepEqual(got, []string{"mp3", "gif"}) {
+	if got := ids(Submenu(".mp4")); !reflect.DeepEqual(got, []string{"whatsapp", "mp3", "m4a", "gif"}) {
 		t.Errorf(".mp4 ids = %v", got)
 	}
 }
 
 func TestSubmenuImageExcludesSame(t *testing.T) {
-	if got := ids(Submenu(".jpeg")); !reflect.DeepEqual(got, []string{"png", "webp", "pdf"}) {
+	if got := ids(Submenu(".jpeg")); !reflect.DeepEqual(got, []string{"png", "webp", "pdf", "ico"}) {
 		t.Errorf("got %v", got)
 	}
 }
@@ -60,14 +60,20 @@ func TestSubmenuPDF(t *testing.T) {
 }
 
 func TestExtras(t *testing.T) {
-	if got := Extras(".pdf"); !reflect.DeepEqual(got, []MenuItem{{"shrink", "Reduce size"}}) {
+	if got := Extras(".pdf"); !reflect.DeepEqual(got, []MenuItem{{"shrink", "Reduce size"}, {"split", "Split into pages"}, {"extract", "Extract pages..."}}) {
 		t.Errorf(".pdf = %v", got)
 	}
 	if got := Extras(".heic"); !reflect.DeepEqual(got, []MenuItem{{"clean", "Remove metadata"}}) {
 		t.Errorf(".heic = %v", got)
 	}
-	if got := Extras(".mov"); len(got) != 0 {
-		t.Errorf(".mov = %v", got)
+	for _, ext := range []string{".mov", ".mp4", ".mp3", ".m4a", ".flac"} {
+		if got := Extras(ext); !reflect.DeepEqual(got, []MenuItem{{"clean", "Remove metadata"}}) {
+			t.Errorf("%s = %v", ext, got)
+		}
+	}
+	// MKV files often carry fonts and track names that matter; leave them alone.
+	if got := Extras(".mkv"); len(got) != 0 {
+		t.Errorf(".mkv = %v", got)
 	}
 }
 
@@ -149,12 +155,78 @@ func TestSendToItems(t *testing.T) {
 
 func TestImageSubmenuHasPDF(t *testing.T) {
 	jpg := Submenu(".jpg")
-	if jpg[len(jpg)-1] != (MenuItem{"pdf", "PDF"}) {
+	if !reflect.DeepEqual(ids(jpg), []string{"png", "webp", "pdf", "ico"}) {
 		t.Errorf(".jpg = %v", jpg)
 	}
 	for _, it := range Submenu(".pdf") {
 		if it.ActionID == "pdf" {
 			t.Error(".pdf must not offer PDF")
+		}
+	}
+}
+
+func TestSubmenuAudioFormats(t *testing.T) {
+	if got := ids(Submenu(".mp3")); !reflect.DeepEqual(got, []string{"m4a", "wav", "flac", "ogg"}) {
+		t.Errorf(".mp3 = %v", got)
+	}
+	if got := ids(Submenu(".wav")); !reflect.DeepEqual(got, []string{"mp3", "m4a", "flac", "ogg"}) {
+		t.Errorf(".wav = %v", got)
+	}
+	if got := ids(Submenu(".opus")); len(got) != 5 {
+		t.Errorf(".opus = %v", got)
+	}
+}
+
+func TestWhatsAppAction(t *testing.T) {
+	a, ok := Lookup("whatsapp")
+	if !ok || a.Tag != " (WhatsApp)" || a.OutExt != ".mp4" || a.Kind != Heavy {
+		t.Errorf("whatsapp = %+v", a)
+	}
+}
+
+// Formats added in 0.4: more video, audio and picture types, GIF → MP4,
+// icons, SVG and EPUB.
+func TestMoreFormats(t *testing.T) {
+	for _, ext := range []string{".m4v", ".3gp", ".mts", ".m2ts", ".mpg", ".mpeg", ".flv"} {
+		if got := ids(Submenu(ext)); !reflect.DeepEqual(got, []string{"mp4", "whatsapp", "mp3", "m4a", "gif"}) {
+			t.Errorf("%s = %v", ext, got)
+		}
+	}
+	for _, ext := range []string{".aiff", ".aif", ".amr"} {
+		if got := ids(Submenu(ext)); !reflect.DeepEqual(got, []string{"mp3", "m4a", "wav", "flac", "ogg"}) {
+			t.Errorf("%s = %v", ext, got)
+		}
+	}
+	for _, ext := range []string{".tif", ".tiff", ".avif"} {
+		if got := ids(Submenu(ext)); !reflect.DeepEqual(got, []string{"png", "jpg", "webp", "pdf", "ico"}) {
+			t.Errorf("%s = %v", ext, got)
+		}
+	}
+	if got := ids(Submenu(".png")); !reflect.DeepEqual(got, []string{"jpg", "webp", "pdf", "ico"}) {
+		t.Errorf(".png = %v", got)
+	}
+	if got := ids(Submenu(".gif")); !reflect.DeepEqual(got, []string{"png", "jpg", "webp", "pdf", "ico", "mp4"}) {
+		t.Errorf(".gif = %v", got)
+	}
+	if got := labels(Submenu(".gif")); got[len(got)-1] != "MP4 (video)" || got[4] != "ICO (icon)" {
+		t.Errorf(".gif labels = %v", got)
+	}
+	if got := ids(Submenu(".svg")); !reflect.DeepEqual(got, []string{"png"}) {
+		t.Errorf(".svg = %v", got)
+	}
+	if got := ids(Submenu(".epub")); !reflect.DeepEqual(got, []string{"pdf", "md"}) {
+		t.Errorf(".epub = %v", got)
+	}
+	// Remove metadata: phone videos and Apple audio yes; camcorder, old and
+	// voice-memo formats (which hold no personal data in their tags) no.
+	for _, ext := range []string{".m4v", ".3gp", ".aiff", ".aif"} {
+		if !Supports("clean", ext) {
+			t.Errorf("%s should offer Remove metadata", ext)
+		}
+	}
+	for _, ext := range []string{".amr", ".mts", ".m2ts", ".mpg", ".flv", ".svg", ".epub", ".gif", ".tif", ".avif"} {
+		if Supports("clean", ext) {
+			t.Errorf("%s should not offer Remove metadata", ext)
 		}
 	}
 }

@@ -12,6 +12,8 @@
 //  4. Commit moves the result out to the first free name next to the
 //     original: "trip.mp4", or "trip (1).mp4" if that is taken, and so on.
 //  5. Cleanup deletes the temporary folder, whether the job worked or not.
+//     (If QuickConvert is killed before that, the next job in the same
+//     folder removes the leftover once it is a day old.)
 package outpath
 
 import (
@@ -22,7 +24,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 )
 
 // ErrNotWritable is returned when we cannot create files in the folder of
@@ -74,7 +78,35 @@ func NewWork(parent string) (*Work, error) {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return nil, ErrNotWritable
 	}
+	removeLeftovers(parent, dir)
 	return &Work{Dir: dir, Parent: parent, link: os.Link, move: moveNoReplace}, nil
+}
+
+// leftoverAge: a temporary folder older than this is a leftover from a job
+// that was killed (Task Manager, power cut); no real job takes that long.
+const leftoverAge = 24 * time.Hour
+
+// leftover matches the names of our temporary folders: ".qc-1a2b3c4d.part".
+var leftover = regexp.MustCompile(`^\.qc-[0-9a-f]{8}\.part$`)
+
+// removeLeftovers deletes old temporary folders in parent (never the
+// current one, nor anything that isn't ours). Deleting is safe: inside
+// there are only results and hard links to originals, and removing a hard
+// link leaves the original untouched.
+func removeLeftovers(parent, current string) {
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		path := filepath.Join(parent, e.Name())
+		if !e.IsDir() || !leftover.MatchString(e.Name()) || path == current {
+			continue
+		}
+		if info, err := e.Info(); err == nil && time.Since(info.ModTime()) > leftoverAge {
+			os.RemoveAll(path)
+		}
+	}
 }
 
 // LinkInput makes the original file available inside the work folder as
@@ -157,6 +189,34 @@ func (w *Work) CommitPages(tmpNames []string, base, ext string) ([]string, error
 		return saved, nil
 	}
 	return nil, fmt.Errorf("no free file names for %s pages", base)
+}
+
+// CommitPagesInFolder saves the pages of a multi-page result in a new
+// folder next to the original, named like it: "report\report-1.png",
+// "report\report-2.png"... If something called "report" already exists,
+// the folder becomes "report (1)", and so on: an existing folder is never
+// written into.
+func (w *Work) CommitPagesInFolder(tmpNames []string, base, ext string) ([]string, error) {
+	for n := 0; n < maxTries; n++ {
+		folder := filepath.Join(w.Parent, Candidate(base, n, ""))
+		if err := os.Mkdir(folder, 0o755); err != nil {
+			if os.IsExist(err) {
+				continue // name taken (by a folder or a file): try the next number
+			}
+			return nil, err
+		}
+		var saved []string
+		for i, tmp := range tmpNames {
+			dst := filepath.Join(folder, PageName(base, 0, i+1, ext))
+			if err := w.claim(filepath.Join(w.Dir, tmp), dst); err != nil {
+				return saved, err
+			}
+			os.Remove(filepath.Join(w.Dir, tmp))
+			saved = append(saved, dst)
+		}
+		return saved, nil
+	}
+	return nil, fmt.Errorf("no free folder name for %s", base)
 }
 
 // allPagesFree reports whether none of the page names for number n exist.

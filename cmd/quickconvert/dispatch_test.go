@@ -87,3 +87,53 @@ func TestMergeRouting(t *testing.T) {
 		t.Error("merge should use pdf.Merge")
 	}
 }
+
+func TestNewVideoAndAudioRouting(t *testing.T) {
+	for _, c := range []struct{ id, ext string }{{"whatsapp", ".mov"}, {"whatsapp", ".mp4"}, {"m4a", ".mov"}} {
+		a, _ := actions.Lookup(c.id)
+		if !same(handlerFor(a, c.ext), media.Video) {
+			t.Errorf("%s from %s should use media.Video", c.id, c.ext)
+		}
+	}
+	for _, id := range []string{"m4a", "flac", "ogg", "wav", "mp3"} {
+		a, _ := actions.Lookup(id)
+		if !same(handlerFor(a, ".wav"), media.Audio) && !(id == "wav") {
+			t.Errorf("%s from .wav should use media.Audio", id)
+		}
+		if !same(handlerFor(a, ".mp3"), media.Audio) && id != "mp3" {
+			t.Errorf("%s from .mp3 should use media.Audio", id)
+		}
+	}
+}
+
+func TestSplitRouting(t *testing.T) {
+	split, _ := actions.Lookup("split")
+	if !same(handlerFor(split, ".pdf"), pdf.Split) {
+		t.Error("split should use pdf.Split")
+	}
+}
+
+func TestNewFormatRouting(t *testing.T) {
+	get := func(id string) actions.Action { a, _ := actions.Lookup(id); return a }
+	cases := []struct {
+		id, ext string
+		want    app.Handler
+	}{
+		{"mp4", ".gif", media.GIFToMP4},
+		{"ico", ".png", media.Icon},
+		{"ico", ".heic", media.Icon},
+		{"png", ".svg", pdf.SVG},
+		{"pdf", ".epub", pdf.ToPDF},
+		{"pdf", ".tiff", pdf.ToPDF},
+		{"md", ".epub", pdfmd.Convert},
+		{"pdf", ".avif", imagepdf.Convert},
+		{"png", ".avif", media.Image},
+		{"mp4", ".mts", media.Video},
+		{"mp3", ".amr", media.Audio},
+	}
+	for _, c := range cases {
+		if !same(handlerFor(get(c.id), c.ext), c.want) {
+			t.Errorf("%s from %s: wrong converter", c.id, c.ext)
+		}
+	}
+}

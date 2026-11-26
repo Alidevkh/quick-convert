@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -51,7 +52,7 @@ func setup(t *testing.T, name string, h Handler) (string, *recorder, *bytes.Buff
 	log := &bytes.Buffer{}
 	d := Deps{
 		Notify:     rec.notify,
-		Acquire:    func() func() { return func() {} },
+		Acquire:    func(actions.Kind) func() { return func() {} },
 		Log:        log,
 		Handlers:   func(actions.Action, string) Handler { return h },
 		StartDelay: time.Hour,
@@ -175,34 +176,44 @@ func TestStartNotificationOnlyWhenSlow(t *testing.T) {
 		t.Errorf("slow job calls = %v", calls)
 	}
 
+	// A fast job, with the program's real 1-second delay. (A 50 ms delay
+	// made this test flaky: on a busy machine even creating the temporary
+	// folder can take longer than 50 ms.)
 	input2, rec2, _, d2 := setup(t, "y.mov", commitCopy)
-	d2.StartDelay = 50 * time.Millisecond
+	d2.StartDelay = time.Second
 	Run(context.Background(), "mp4", input2, d2)
-	time.Sleep(80 * time.Millisecond) // a late timer would fire here
+	time.Sleep(1100 * time.Millisecond) // a timer that was not stopped would fire here
 	if calls := rec2.all(); len(calls) != 1 {
 		t.Errorf("fast job calls = %v", calls)
 	}
 }
 
-func TestHeavyAcquires(t *testing.T) {
-	acquired, released := 0, 0
-	acquire := func() func() {
-		acquired++
+// Every job waits for a slot of its kind (2 heavy, 4 light at once), so
+// selecting 30 files doesn't start 30 conversions together. A job that
+// first asks the user a question doesn't take a slot while waiting.
+func TestJobsAcquireSlotByKind(t *testing.T) {
+	var got []actions.Kind
+	released := 0
+	acquire := func(k actions.Kind) func() {
+		got = append(got, k)
 		return func() { released++ }
 	}
 	input, _, _, d := setup(t, "x.mov", commitCopy)
 	d.Acquire = acquire
 	Run(context.Background(), "mp4", input, d)
-	if acquired != 1 || released != 1 {
-		t.Errorf("heavy: acquired %d released %d", acquired, released)
-	}
-
-	acquired, released = 0, 0
 	input2, _, _, d2 := setup(t, "x.txt", commitCopy)
 	d2.Acquire = acquire
 	Run(context.Background(), "code-py", input2, d2)
-	if acquired != 0 {
-		t.Errorf("light job acquired %d", acquired)
+	if !reflect.DeepEqual(got, []actions.Kind{actions.Heavy, actions.Light}) || released != 2 {
+		t.Errorf("acquired %v, released %d", got, released)
+	}
+
+	got = nil
+	input3, _, _, d3 := setup(t, "x.pdf", commitCopy)
+	d3.Acquire = acquire
+	Run(context.Background(), "extract", input3, d3)
+	if len(got) != 0 {
+		t.Errorf("an action that asks first took a slot: %v", got)
 	}
 }
 
@@ -340,5 +351,40 @@ func TestLogKeepsEngineDetailsThroughForFile(t *testing.T) {
 	}
 	if got := rec.last(); !strings.HasPrefix(got[1], "a.heic: ") {
 		t.Errorf("notification = %v", got)
+	}
+}
+
+// Actions that ask the user something (Extract pages...) must not show
+// "Converting…" while the question box is open.
+func TestNoStartNotificationForInteractiveAction(t *testing.T) {
+	slow := func(ctx context.Context, j Job) (Result, error) {
+		time.Sleep(120 * time.Millisecond) // the user is typing
+		return Result{}, &Info{}
+	}
+	input, rec, log, d := setup(t, "doc.pdf", slow)
+	d.StartDelay = 50 * time.Millisecond
+	Run(context.Background(), "extract", input, d)
+	if calls := rec.all(); len(calls) != 0 {
+		t.Errorf("notifications = %v, want none", calls)
+	}
+	if !strings.Contains(log.String(), "cancelled") {
+		t.Errorf("log should say cancelled: %q", log.String())
+	}
+}
+
+// The notification names the folder the results are in, which is not
+// always the original's folder (PDF pages go in their own folder).
+func TestDoneNamesResultFolder(t *testing.T) {
+	input, rec, _, d := setup(t, "x.pdf", commitCopy)
+	sub := filepath.Join(filepath.Dir(input), "x")
+	d.Handlers = func(actions.Action, string) Handler {
+		return func(ctx context.Context, j Job) (Result, error) {
+			return Result{Outputs: []string{filepath.Join(sub, "x-1.png"), filepath.Join(sub, "x-2.png")}}, nil
+		}
+	}
+	Run(context.Background(), "png", input, d)
+	calls := rec.all()
+	if len(calls) == 0 || calls[len(calls)-1][1] != "Saved in "+sub {
+		t.Errorf("notifications: %v", calls)
 	}
 }

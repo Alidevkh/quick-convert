@@ -31,6 +31,9 @@
 | `internal/outpath/outpath.go` | المجلد المؤقت، وتسمية الملفات الناتجة، ومنع الكتابة فوق الملفات. |
 | `internal/engines/engines.go` | البحث عن البرامج المساعدة (ffmpeg وغيره) وتشغيلها بدون نافذة سوداء. |
 | `internal/media/media.go` | الفيديو والصوت والصور (ffmpeg). |
+| `internal/procjob/` | يربط المحركات (ffmpeg وغيره) بالبرنامج: إذا أُغلق QuickConvert بالقوة يغلقها ويندوز معه (Job Object). |
+| `packaging/selftest.ps1` | اختبار آلي على ويندوز يشغّله `selftest.cmd`: يثبّت البرنامج ويجرب كل التحويلات ويكتب تقريراً. |
+| `internal/pdf/other.go` | SVG ← PNG، والكتب الإلكترونية EPUB ← PDF (MuPDF). EPUB ← MD يمر على `pdfmd` مثل PDF. |
 | `internal/photo/clean.go` | حذف البيانات المخفية من الصور (exiftool). |
 | `internal/textcopy/textcopy.go` | تحويل txt ↔ py و m و c وغيرها (نسخ المحتوى كما هو). |
 | `internal/pdf/render.go` | PDF ← صور PNG/JPG (mutool). |
@@ -39,6 +42,9 @@
 | `internal/platform/` | أشياء خاصة بويندوز: الإشعارات، وتحديد مهمتين ثقيلتين كحد أقصى. |
 | `internal/imagepdf/imagepdf.go` | صور ← PDF (صفحة لكل صورة)، من Send to ومن Convert to. |
 | `internal/pdfwriter/pdfwriter.go` | يكتب ملف PDF بنفسه من صور JPEG، بدون إعادة ضغطها. |
+| `internal/pdf/split.go` | تقسيم PDF: كل صفحة في ملف. |
+| `internal/pdf/extract.go`، `pages.go` | استخراج صفحات مختارة في ملف واحد، وقراءة نص مثل «1-3, 5». |
+| `internal/platform/ask_windows.go` | نافذة «Which pages?» الصغيرة في ويندوز. |
 | `internal/pdf/merge.go` | دمج عدة ملفات PDF في ملف واحد (mutool). |
 | `internal/app/natural.go` | ترتيب الملفات «الطبيعي»: IMG_9 قبل IMG_10. |
 | `internal/menu/menu.go` | يكتب `install.cmd` و`uninstall.cmd` من الجدول الرئيسي. |
@@ -56,7 +62,9 @@
 ## أمثلة على تعديلات شائعة
 
 - **إضافة امتداد كود جديد (مثل `.cs`):** أضفه إلى قائمة `codeExts` في `actions.go`، ثم أعد البناء وشغّل `install.cmd` من جديد.
-- **تغيير جودة MP3:** عدّل `"192k"` في دالة `MP3Args` داخل `media.go`.
+- **تغيير جودة MP3:** عدّل `"192k"` في سطر `"mp3"` داخل الجدول `audioCodecs` في `media.go`.
+- **خيار MP4 للمونتاج:** دالة `MP4Args` في `media.go` تمرّ على كل مسار (`Stream`) في الفيديو: ما يقبله MP4 يُنسخ كما هو بلا أي فقد، وما لا يقبله يُحوَّل، وما لا يعرفه ffmpeg يُترك. لإضافة صيغة صوت تُنسخ كما هي، أضفها إلى سطر `"aac" ... "eac3"` فيها.
+- **حذف البيانات من فيديو/صوت:** قائمة `cleanVideoExts` في `actions.go` تحدد أنواع الفيديو التي يظهر لها Remove metadata (MKV مستثنى). ملفات OGG/Opus لها دالة خاصة `oggCleanArgs` تحفظ صورة الغلاف.
 - **تغيير دقة صور PDF:** عدّل الثابت `dpi` في `pdf/render.go`.
 - **تغيير الحد الأدنى للتوفير عند تصغير PDF:** عدّل الثابت `minSaving` في `pdf/shrink.go`.
 

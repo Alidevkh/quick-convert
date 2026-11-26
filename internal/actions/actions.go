@@ -29,6 +29,7 @@ type Action struct {
 	Kind   Kind
 	OutExt string // extension of the result; "" means "same as the input"
 	Tag    string // added to the result's name, e.g. " (clean)"
+	Asks   bool   // asks the user a question first (no "Converting…" notice meanwhile)
 }
 
 // MenuItem is one entry in a right-click menu.
@@ -46,24 +47,41 @@ var codeExts = []string{
 
 // all holds every action, by ID.
 var all = map[string]Action{
-	"mp4":    {ID: "mp4", Label: "MP4", Kind: Heavy, OutExt: ".mp4"},
-	"mp3":    {ID: "mp3", Label: "MP3", Kind: Heavy, OutExt: ".mp3"},
-	"gif":    {ID: "gif", Label: "GIF", Kind: Heavy, OutExt: ".gif"},
-	"wav":    {ID: "wav", Label: "WAV", Kind: Heavy, OutExt: ".wav"},
-	"png":    {ID: "png", Label: "PNG", Kind: Light, OutExt: ".png"},
-	"jpg":    {ID: "jpg", Label: "JPG", Kind: Light, OutExt: ".jpg"},
-	"webp":   {ID: "webp", Label: "WEBP", Kind: Light, OutExt: ".webp"},
-	"md":     {ID: "md", Label: "MD", Kind: Light, OutExt: ".md"},
-	"txt":    {ID: "txt", Label: ".txt", Kind: Light, OutExt: ".txt"},
-	"clean":  {ID: "clean", Label: "Remove metadata", Kind: Light, Tag: " (clean)"},
-	"shrink": {ID: "shrink", Label: "Reduce size", Kind: Heavy, OutExt: ".pdf", Tag: " (small)"},
-	"pdf":    {ID: "pdf", Label: "PDF", Kind: Light, OutExt: ".pdf"},
-	"imgpdf": {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
-	"merge":  {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
+	"mp4":  {ID: "mp4", Label: "MP4", Kind: Heavy, OutExt: ".mp4"},
+	"mp3":  {ID: "mp3", Label: "MP3", Kind: Heavy, OutExt: ".mp3"},
+	"gif":  {ID: "gif", Label: "GIF", Kind: Heavy, OutExt: ".gif"},
+	"wav":  {ID: "wav", Label: "WAV", Kind: Heavy, OutExt: ".wav"},
+	"m4a":  {ID: "m4a", Label: "M4A", Kind: Heavy, OutExt: ".m4a"},
+	"flac": {ID: "flac", Label: "FLAC", Kind: Heavy, OutExt: ".flac"},
+	"ogg":  {ID: "ogg", Label: "OGG", Kind: Heavy, OutExt: ".ogg"},
+
+	// A video that plays on any phone or computer and is ready for WhatsApp.
+	"whatsapp": {ID: "whatsapp", Label: "MP4 (WhatsApp)", Kind: Heavy, OutExt: ".mp4", Tag: " (WhatsApp)"},
+	"png":      {ID: "png", Label: "PNG", Kind: Light, OutExt: ".png"},
+	"jpg":      {ID: "jpg", Label: "JPG", Kind: Light, OutExt: ".jpg"},
+	"webp":     {ID: "webp", Label: "WEBP", Kind: Light, OutExt: ".webp"},
+	"md":       {ID: "md", Label: "MD", Kind: Light, OutExt: ".md"},
+	"txt":      {ID: "txt", Label: ".txt", Kind: Light, OutExt: ".txt"},
+	"clean":    {ID: "clean", Label: "Remove metadata", Kind: Light, Tag: " (clean)"},
+	"shrink":   {ID: "shrink", Label: "Reduce size", Kind: Heavy, OutExt: ".pdf", Tag: " (small)"},
+	"pdf":      {ID: "pdf", Label: "PDF", Kind: Light, OutExt: ".pdf"},
+	"split":    {ID: "split", Label: "Split into pages", Kind: Light, OutExt: ".pdf"},
+	"extract":  {ID: "extract", Label: "Extract pages", Kind: Light, OutExt: ".pdf", Asks: true},
+	"imgpdf":   {ID: "imgpdf", Label: "Images to PDF", Kind: Light, OutExt: ".pdf"},
+	"merge":    {ID: "merge", Label: "Merge PDFs", Kind: Light, OutExt: ".pdf", Tag: " (merged)"},
+	"ico":      {ID: "ico", Label: "ICO", Kind: Light, OutExt: ".ico"}, // Windows icon
 }
 
+// videoExts and audioExts are the video and audio types QuickConvert understands.
+var (
+	videoExts = []string{".mov", ".mp4", ".m4v", ".mkv", ".avi", ".webm", ".wmv",
+		".3gp", ".mts", ".m2ts", ".mpg", ".mpeg", ".flv"}
+	audioExts = []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus",
+		".aiff", ".aif", ".amr"}
+)
+
 // imageExts are the picture types QuickConvert understands.
-var imageExts = []string{".png", ".jpg", ".jpeg", ".webp", ".bmp", ".heic"}
+var imageExts = []string{".png", ".jpg", ".jpeg", ".webp", ".bmp", ".heic", ".gif", ".tif", ".tiff", ".avif"}
 
 // group is a set of file types that share the same "Convert to" submenu.
 type group struct {
@@ -73,16 +91,31 @@ type group struct {
 
 var groups = []group{
 	{ // video
-		exts:  []string{".mov", ".mp4", ".mkv", ".avi", ".webm", ".wmv"},
-		items: []MenuItem{{"mp4", "MP4"}, {"mp3", "MP3 (audio only)"}, {"gif", "GIF"}},
+		exts: videoExts,
+		items: []MenuItem{
+			{"mp4", "MP4 (full quality, for editing)"}, {"whatsapp", "MP4 (WhatsApp / any device)"},
+			{"mp3", "MP3 (audio only)"}, {"m4a", "M4A (audio only)"}, {"gif", "GIF"},
+		},
 	},
 	{ // audio
-		exts:  []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma"},
-		items: []MenuItem{{"mp3", "MP3"}, {"wav", "WAV"}},
+		exts:  audioExts,
+		items: []MenuItem{{"mp3", "MP3"}, {"m4a", "M4A"}, {"wav", "WAV"}, {"flac", "FLAC"}, {"ogg", "OGG"}},
 	},
 	{ // image
 		exts:  imageExts,
-		items: []MenuItem{{"png", "PNG"}, {"jpg", "JPG"}, {"webp", "WEBP"}, {"pdf", "PDF"}},
+		items: []MenuItem{{"png", "PNG"}, {"jpg", "JPG"}, {"webp", "WEBP"}, {"pdf", "PDF"}, {"ico", "ICO (icon)"}},
+	},
+	{ // an animated GIF can also become a video (plays in every app)
+		exts:  []string{".gif"},
+		items: []MenuItem{{"mp4", "MP4 (video)"}},
+	},
+	{ // a vector drawing (logo, icon) as a sharp picture
+		exts:  []string{".svg"},
+		items: []MenuItem{{"png", "PNG"}},
+	},
+	{ // e-book
+		exts:  []string{".epub"},
+		items: []MenuItem{{"pdf", "PDF"}, {"md", "MD"}},
 	},
 	{ // pdf
 		exts:  []string{".pdf"},
@@ -102,8 +135,18 @@ var groups = []group{
 // inside "Convert to").
 var extras = []group{
 	{exts: []string{".jpg", ".jpeg", ".png", ".heic", ".webp"}, items: []MenuItem{{"clean", "Remove metadata"}}},
-	{exts: []string{".pdf"}, items: []MenuItem{{"shrink", "Reduce size"}}},
+	{exts: []string{".pdf"}, items: []MenuItem{{"shrink", "Reduce size"}, {"split", "Split into pages"}, {"extract", "Extract pages..."}}},
+	{exts: append(append([]string{}, cleanVideoExts...), cleanAudioExts...), items: []MenuItem{{"clean", "Remove metadata"}}},
 }
+
+// cleanVideoExts and cleanAudioExts are the types offered "Remove metadata".
+// Left out: MKV (its attached fonts and track names would be lost), and
+// camcorder (.mts .m2ts), old (.mpg .flv) and voice-memo (.amr) files,
+// whose tags hold no personal information.
+var (
+	cleanVideoExts = []string{".mov", ".mp4", ".m4v", ".avi", ".webm", ".wmv", ".3gp"}
+	cleanAudioExts = []string{".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".mp3", ".opus", ".aiff", ".aif"}
+)
 
 // codeMenuItems creates the ".py", ".m", ... entries and registers a
 // "code-py", "code-m", ... action for each one.
@@ -169,7 +212,10 @@ func itemsFor(list []group, ext string, skipSameFormat bool) []MenuItem {
 			continue
 		}
 		for _, it := range g.items {
-			if skipSameFormat && sameFormat(all[it.ActionID].OutExt, ext) {
+			// Converting a file to its own format is pointless, unless the
+			// action makes something different (it has a tag, e.g. "(WhatsApp)").
+			a := all[it.ActionID]
+			if skipSameFormat && a.Tag == "" && sameFormat(a.OutExt, ext) {
 				continue
 			}
 			out = append(out, it)
@@ -227,3 +273,7 @@ func SendToFor(id string) (SendTo, bool) {
 	}
 	return SendTo{}, false
 }
+
+// IsImage reports whether ext is a picture type (used to pick the right
+// "Remove metadata" converter: photos and videos/audio differ).
+func IsImage(ext string) bool { return contains(imageExts, strings.ToLower(ext)) }

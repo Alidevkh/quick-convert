@@ -61,6 +61,46 @@ func TestRenderMultiPage(t *testing.T) {
 	if got := strings.Join(names(r.Outputs), ","); got != "doc-1.png,doc-2.png,doc-3.png" {
 		t.Errorf("outputs %s", got)
 	}
+	// The pages go in a folder named after the PDF, not loose next to it.
+	if folder := filepath.Dir(r.Outputs[0]); folder != filepath.Join(dir, "doc") {
+		t.Errorf("pages saved in %s, want %s", folder, filepath.Join(dir, "doc"))
+	}
+}
+
+// A folder (or file) with the PDF's name already exists: a new folder
+// "doc (1)" is made; nothing already there is touched.
+func TestRenderPagesFolderNameTaken(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakePDF(t, dir, "doc.pdf", 2)
+	os.Mkdir(filepath.Join(dir, "doc"), 0o755)
+	os.WriteFile(filepath.Join(dir, "doc", "doc-1.png"), []byte("mine"), 0o644)
+	os.WriteFile(filepath.Join(dir, "doc (1)"), []byte("a file, not a folder"), 0o644)
+	r, err := testutil.RunHandler(t, Render, in, "jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(dir, "doc (2)")
+	if got := strings.Join(r.Outputs, ","); got != filepath.Join(want, "doc-1.jpg")+","+filepath.Join(want, "doc-2.jpg") {
+		t.Errorf("outputs %s", got)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "doc", "doc-1.png")); string(b) != "mine" {
+		t.Error("an existing file was changed")
+	}
+}
+
+// A one-page PDF gives one picture, saved next to the PDF (no folder).
+func TestRenderOnePageNoFolder(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakePDF(t, dir, "one.pdf", 1)
+	r, err := testutil.RunHandler(t, Render, in, "png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "one.png") {
+		t.Errorf("outputs %v", r.Outputs)
+	}
 }
 
 func TestRenderManyPagesInOrder(t *testing.T) {
@@ -101,7 +141,7 @@ func runThroughApp(t *testing.T, id, input string, h app.Handler) (code int, las
 	var bodies []string
 	code = app.Run(context.Background(), id, input, app.Deps{
 		Notify:     func(title, body string) { bodies = append(bodies, body) },
-		Acquire:    func() func() { return func() {} },
+		Acquire:    func(actions.Kind) func() { return func() {} },
 		Log:        &bytes.Buffer{},
 		Eng:        engines.Default(),
 		Handlers:   func(actions.Action, string) app.Handler { return h },
@@ -188,7 +228,7 @@ func mergeThroughApp(t *testing.T, files ...string) (int, [2]string) {
 	var last [2]string
 	code := app.RunMany(context.Background(), "merge", files, app.Deps{
 		Notify:     func(title, body string) { last = [2]string{title, body} },
-		Acquire:    func() func() { return func() {} },
+		Acquire:    func(actions.Kind) func() { return func() {} },
 		Log:        &bytes.Buffer{},
 		Eng:        engines.Default(),
 		Handlers:   func(actions.Action, string) app.Handler { return Merge },
@@ -260,5 +300,198 @@ func TestMergeOwnerPasswordOnly(t *testing.T) {
 	text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", filepath.Join(dir, "a (merged).pdf"))
 	if !strings.Contains(text, "Bravo page 1") {
 		t.Errorf("second PDF's text missing:\n%s", text)
+	}
+}
+
+func TestSplitThreePages(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 3)
+	r, err := testutil.RunHandler(t, Split, in, "split")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(names(r.Outputs), ","); got != "doc-1.pdf,doc-2.pdf,doc-3.pdf" {
+		t.Fatalf("outputs %s", got)
+	}
+	if r.Detail != "3 pages" {
+		t.Errorf("detail %q", r.Detail)
+	}
+	for i, p := range r.Outputs {
+		if n := len(testutil.MediaBoxes(t, p)); n != 1 {
+			t.Errorf("%s has %d pages, want 1", filepath.Base(p), n)
+		}
+		text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", p)
+		if want := "Doc page " + strconv.Itoa(i+1); !strings.Contains(text, want) {
+			t.Errorf("%s does not contain %q", filepath.Base(p), want)
+		}
+	}
+}
+
+func TestSplitOnePage(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakePDF(t, dir, "one.pdf", 1)
+	_, err := testutil.RunHandler(t, Split, in, "split")
+	var ue *app.UserError
+	if !errors.As(err, &ue) || ue.Msg != "This PDF has only one page" {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "one-1.pdf")); !os.IsNotExist(err) {
+		t.Error("a page file was created")
+	}
+}
+
+// mutool show does NOT fail on a password-protected PDF (it says 1 page),
+// so Split must check the PDF opens first.
+func TestSplitEncrypted(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	dir := t.TempDir()
+	in := testutil.MakeEncryptedPDF(t, dir, "secret.pdf")
+	code, body := runThroughApp(t, "split", in, Split)
+	if code != 1 || body != "This PDF is password-protected" {
+		t.Errorf("code %d body %q", code, body)
+	}
+}
+
+// withAnswer makes the "Which pages?" box answer as given during a test.
+func withAnswer(t *testing.T, answer string, ok bool) {
+	t.Helper()
+	old := AskPages
+	AskPages = func(pages int) (string, bool, error) { return answer, ok, nil }
+	t.Cleanup(func() { AskPages = old })
+}
+
+func TestExtractPages(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	withAnswer(t, "5, 1-2", true)
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 6)
+	r, err := testutil.RunHandler(t, Extract, in, "extract")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(r.Outputs); len(got) != 1 || got[0] != "doc (pages 5, 1-2).pdf" {
+		t.Fatalf("outputs %v", got)
+	}
+	text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", r.Outputs[0])
+	p5, p1, p2 := strings.Index(text, "Doc page 5"), strings.Index(text, "Doc page 1"), strings.Index(text, "Doc page 2")
+	if p5 < 0 || !(p5 < p1 && p1 < p2) || strings.Contains(text, "Doc page 3") {
+		t.Errorf("wrong pages or order:\n%s", text)
+	}
+}
+
+func TestExtractCancelled(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	withAnswer(t, "", false)
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 3)
+	_, err := testutil.RunHandler(t, Extract, in, "extract")
+	var info *app.Info
+	if !errors.As(err, &info) || info.Msg != "" {
+		t.Errorf("err = %v, want a silent cancel", err)
+	}
+}
+
+func TestExtractOutOfRange(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	withAnswer(t, "2-9", true)
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 3)
+	_, err := testutil.RunHandler(t, Extract, in, "extract")
+	var ue *app.UserError
+	if !errors.As(err, &ue) || ue.Msg != "Pages must be between 1 and 3" {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestExtractEncrypted(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	withAnswer(t, "1", true)
+	dir := t.TempDir()
+	in := testutil.MakeEncryptedPDF(t, dir, "secret.pdf")
+	code, body := runThroughApp(t, "extract", in, Extract)
+	if code != 1 || body != "This PDF is password-protected" {
+		t.Errorf("code %d body %q", code, body)
+	}
+}
+
+// If the page box can't be shown (PowerShell blocked), the user must get a
+// message, not silence.
+func TestExtractAskFails(t *testing.T) {
+	testutil.Need(t, "gs", "mutool")
+	old := AskPages
+	AskPages = func(int) (string, bool, error) { return "", false, errors.New("blocked by policy") }
+	t.Cleanup(func() { AskPages = old })
+	dir := t.TempDir()
+	in := labelledPDF(t, dir, "doc.pdf", "Doc", 3)
+	_, err := testutil.RunHandler(t, Extract, in, "extract")
+	var ue *app.UserError
+	if !errors.As(err, &ue) || ue.Msg != "Couldn't show the page box (PowerShell may be blocked)" {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// An SVG logo becomes a sharp PNG (longest side 2048 px) that keeps its
+// transparent background.
+func TestSVGToPNG(t *testing.T) {
+	testutil.Need(t, "mutool", "ffprobe", "ffmpeg")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "logo.svg")
+	os.WriteFile(in, []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">`+
+		`<rect x="34" y="4" width="26" height="24" fill="blue"/></svg>`), 0o644)
+	r, err := testutil.RunHandler(t, SVG, in, "png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "logo.png") {
+		t.Errorf("output %v", r.Outputs)
+	}
+	if w, h := testutil.Dims(t, r.Outputs[0]); w != 2048 || h != 1024 {
+		t.Errorf("size %dx%d", w, h)
+	}
+	corner := testutil.Run(t, "ffmpeg", "-v", "error", "-i", r.Outputs[0], "-vf", "crop=1:1:0:0",
+		"-f", "rawvideo", "-pix_fmt", "rgba", "-")
+	if len(corner) != 4 || corner[3] != 0 {
+		t.Errorf("background should be transparent: %v", []byte(corner))
+	}
+}
+
+func TestEPUBToPDF(t *testing.T) {
+	testutil.Need(t, "mutool")
+	dir := t.TempDir()
+	in := testutil.MakeEPUB(t, dir, "book.epub")
+	r, err := testutil.RunHandler(t, ToPDF, in, "pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Outputs[0] != filepath.Join(dir, "book.pdf") {
+		t.Errorf("output %v", r.Outputs)
+	}
+	text := testutil.Run(t, "mutool", "draw", "-q", "-F", "txt", "-o", "-", r.Outputs[0])
+	for _, want := range []string{"Chapter One", "Chapter Two"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("missing %q in %s", want, text)
+		}
+	}
+	// Arabic is drawn with joined letter shapes, so a PDF reader gives back
+	// those shapes (U+FE70-U+FEFF) rather than the plain letters.
+	if !strings.ContainsAny(text, "مﻣ") {
+		t.Errorf("Arabic text missing: %s", text)
+	}
+}
+
+// A multi-page TIFF scan becomes a PDF with every page.
+func TestMultiPageTIFFToPDF(t *testing.T) {
+	testutil.Need(t, "mutool", "convert")
+	dir := t.TempDir()
+	in := filepath.Join(dir, "scan.tif")
+	testutil.Run(t, "convert", "-size", "100x140", "xc:white", "xc:red", "xc:blue", in)
+	r, err := testutil.RunHandler(t, ToPDF, in, "pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info := testutil.Run(t, "mutool", "info", r.Outputs[0]); !strings.Contains(info, "Pages: 3") {
+		t.Errorf("want 3 pages: %s", info)
 	}
 }
