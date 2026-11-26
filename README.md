@@ -76,6 +76,7 @@ go test ./...                 # tests (need ffmpeg, mutool, gs, exiftool on PATH
 scripts/fetch-engines.sh      # download the Windows engines into engines/windows
 scripts/build.sh              # build dist/QuickConvert.zip
 scripts/release.sh "notes"    # publish a GitHub release with the zip
+                              # (or, no terminal: Actions tab > Publish release > Run workflow)
 ```
 
 A guided tour of the code (in Arabic): [`docs/CODE-GUIDE.md`](docs/CODE-GUIDE.md).
