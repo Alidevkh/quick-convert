@@ -58,6 +58,7 @@ if [ ! -f "$OUT/exiftool.exe" ]; then
   actual="$(sha256sum "$TMP/exiftool.zip" | cut -d' ' -f1)"
   [ -n "$expected" ] && [ "$expected" = "$actual" ] || { echo "ExifTool checksum mismatch" >&2; exit 1; }
   rm -rf "$TMP/exiftool" && unzip -q "$TMP/exiftool.zip" -d "$TMP/exiftool"
+  chmod -R u+w "$TMP/exiftool"   # its folders are read-only: copies could not be deleted later
   cp "$TMP"/exiftool/*/"exiftool(-k).exe" "$OUT/exiftool.exe"
   rm -rf "$OUT/exiftool_files" && cp -r "$TMP"/exiftool/*/exiftool_files "$OUT/"
 fi
@@ -66,5 +67,5 @@ fi
 for f in ffmpeg.exe ffprobe.exe mutool.exe gswin64c.exe gsdll64.dll exiftool.exe exiftool_files; do
   [ -e "$OUT/$f" ] || { echo "MISSING: $OUT/$f" >&2; exit 1; }
 done
-rm -rf "$TMP"
+chmod -R u+w "$TMP" && rm -rf "$TMP"
 echo "All engines ready in $OUT"
