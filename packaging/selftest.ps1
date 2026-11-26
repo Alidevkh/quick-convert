@@ -167,10 +167,16 @@ try {
     $r = RunQC @('merge', $pdf, (Join-Path $work 'scan.pdf'))
     Check ($r.Code -eq 0 -and (Test-Path (Join-Path $work 'photo (merged).pdf'))) ("{0,-32} {1,6:N1} s {2,6} MB" -f 'Send to: Merge PDFs', $r.Seconds, $r.PeakMB)
     $merged = Join-Path $work 'photo (merged).pdf'
-    foreach ($a in @(@('split', 'Split into pages'), @('png', 'PDF to PNG'), @('md', 'PDF to MD'), @('shrink', 'Reduce size'))) {
+    foreach ($a in @(@('split', 'Split into pages'), @('png', 'PDF to PNG'), @('shrink', 'Reduce size'))) {
         $r = RunQC @($a[0], $merged)
         Check ($r.Code -eq 0) ("{0,-32} {1,6:N1} s {2,6} MB" -f $a[1], $r.Seconds, $r.PeakMB)
     }
+    # PDF to MD needs a PDF with real text: the one made from the e-book.
+    $r = RunQC @('md', (Join-Path $work 'book.pdf'))
+    Check ($r.Code -eq 0 -and (Test-Path (Join-Path $work 'book (1).md'))) ("{0,-32} {1,6:N1} s {2,6} MB" -f 'PDF to MD', $r.Seconds, $r.PeakMB)
+    # A PDF made of pictures has no text: refused with a message, no file made.
+    $r = RunQC @('md', $merged)
+    Check ($r.Code -ne 0 -and -not (Test-Path (Join-Path $work 'photo (merged).md'))) "PDF of pictures to MD is refused (no text)"
     $r = RunQC @('imgpdf', (Join-Path $work 'photo.jpg'), (Join-Path $work 'anim.gif'))
     Check ($r.Code -eq 0) ("{0,-32} {1,6:N1} s {2,6} MB" -f 'Send to: Images to PDF', $r.Seconds, $r.PeakMB)
     Log ""
