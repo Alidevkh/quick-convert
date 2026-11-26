@@ -49,7 +49,7 @@ func main() {
 
 	deps := app.Deps{
 		Notify:     platform.Notify,
-		Acquire:    platform.AcquireHeavy,
+		Acquire:    platform.Acquire,
 		Log:        logFile,
 		Eng:        engines.Default(),
 		Handlers:   handlerFor,

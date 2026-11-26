@@ -165,6 +165,11 @@ reg delete "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.shrink" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.split" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.extract" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert.clean" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert.shrink" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert.split" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert.extract" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert.clean" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert.shrink" /f >nul 2>&1

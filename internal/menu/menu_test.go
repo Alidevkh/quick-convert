@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -185,7 +186,12 @@ func TestInstallUnblocksInstalledFiles(t *testing.T) {
 // cmd.exe reads .cmd files in the old OEM code page, so any non-ASCII
 // character (like "…") would show up garbled in the menu.
 func TestScriptsAreASCII(t *testing.T) {
-	for name, s := range map[string]string{"install": InstallScript(), "uninstall": UninstallScript()} {
+	selftest, err := os.ReadFile("../../packaging/selftest.ps1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, s := range map[string]string{"install": InstallScript(), "uninstall": UninstallScript(),
+		"selftest": SelfTestScript(), "selftest.ps1": string(selftest)} { // Windows PowerShell 5.1 misreads non-ASCII
 		for i, r := range s {
 			if r > 127 {
 				t.Errorf("%s.cmd has non-ASCII %q at byte %d", name, r, i)

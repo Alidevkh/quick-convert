@@ -67,6 +67,17 @@ func InstallScript() string {
 	return s.String()
 }
 
+// SelfTestScript returns the text of selftest.cmd, which runs the
+// PowerShell self-test (selftest.ps1) next to it.
+func SelfTestScript() string {
+	var s script
+	s.add("@echo off")
+	s.add("rem Installs QuickConvert and tests every conversion on this computer.")
+	s.add(`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0selftest.ps1" %*`)
+	s.add("pause")
+	return s.String()
+}
+
 // UninstallScript returns the text of uninstall.cmd.
 func UninstallScript() string {
 	var s script

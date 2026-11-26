@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestCandidate(t *testing.T) {
@@ -292,6 +293,39 @@ func TestLinkInputs(t *testing.T) {
 	for i, name := range w.Ins {
 		if mustRead(t, filepath.Join(w.Dir, name)) != fmt.Sprint(i) {
 			t.Errorf("%s has wrong content", name)
+		}
+	}
+}
+
+// Temporary folders left behind by a job that was killed (Task Manager,
+// power cut) are removed by the next job in the same folder — but only
+// ours, and only old ones (a job may still be running in a recent one).
+func TestNewWorkRemovesOldLeftovers(t *testing.T) {
+	parent := t.TempDir()
+	old := filepath.Join(parent, ".qc-0badf00d.part")
+	recent := filepath.Join(parent, ".qc-12345678.part")
+	other := filepath.Join(parent, ".qc-notours")
+	for _, d := range []string{old, recent, other} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(d, "out.mp4"), []byte("x"), 0o644)
+	}
+	long := time.Now().Add(-25 * time.Hour)
+	os.Chtimes(old, long, long)
+	os.Chtimes(other, long, long)
+
+	w, err := NewWork(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Cleanup()
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Error("old leftover folder was not removed")
+	}
+	for _, keep := range []string{recent, other} {
+		if _, err := os.Stat(keep); err != nil {
+			t.Errorf("%s should be kept: %v", keep, err)
 		}
 	}
 }

@@ -20,6 +20,7 @@ GOOS=windows GOARCH=amd64 go build -trimpath \
   -o "$OUT/quickconvert.exe" ./cmd/quickconvert
 go run ./cmd/genscripts "$OUT"
 sed 's/$/\r/' packaging/README.txt > "$OUT/README.txt"   # Windows line endings for Notepad
+sed 's/$/\r/' packaging/selftest.ps1 > "$OUT/selftest.ps1"
 
 if [ -f engines/windows/ffmpeg.exe ]; then
   cp -r engines/windows/. "$OUT/"

@@ -46,7 +46,7 @@ type Handler func(ctx context.Context, j Job) (Result, error)
 // Deps are the outside pieces Run uses. Tests replace them with fakes.
 type Deps struct {
 	Notify     func(title, body string)                   // show a Windows notification
-	Acquire    func() (release func())                    // wait for a heavy-job slot
+	Acquire    func(actions.Kind) (release func())        // wait for a free slot (2 heavy / 4 light jobs at once)
 	Log        io.Writer                                  // the log file
 	Eng        *engines.Set                               // where the engines are
 	Handlers   func(a actions.Action, ext string) Handler // pick the converter
@@ -156,7 +156,7 @@ func usableFiles(paths, exts []string) []string {
 }
 
 // execute is the part shared by Run and RunMany: show "Converting…" if it
-// takes a while, wait for a heavy-job slot, make the temporary folder (next
+// takes a while, wait for a free job slot, make the temporary folder (next
 // to the first file), put the inputs in it, and run the converter.
 func execute(ctx context.Context, action actions.Action, inputs []string, d Deps) (Result, error) {
 	first := inputs[0]
@@ -172,8 +172,11 @@ func execute(ctx context.Context, action actions.Action, inputs []string, d Deps
 	}
 	defer startTimer.Stop()
 
-	if action.Kind == actions.Heavy {
-		release := d.Acquire()
+	// Wait for a free slot, so selecting 30 files doesn't start 30
+	// conversions at once. An action that first asks the user a question
+	// doesn't hold a slot while the user is typing.
+	if !action.Asks {
+		release := d.Acquire(action.Kind)
 		defer release()
 	}
 

@@ -12,6 +12,8 @@
 //  4. Commit moves the result out to the first free name next to the
 //     original: "trip.mp4", or "trip (1).mp4" if that is taken, and so on.
 //  5. Cleanup deletes the temporary folder, whether the job worked or not.
+//     (If QuickConvert is killed before that, the next job in the same
+//     folder removes the leftover once it is a day old.)
 package outpath
 
 import (
@@ -22,7 +24,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 )
 
 // ErrNotWritable is returned when we cannot create files in the folder of
@@ -74,7 +78,35 @@ func NewWork(parent string) (*Work, error) {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return nil, ErrNotWritable
 	}
+	removeLeftovers(parent, dir)
 	return &Work{Dir: dir, Parent: parent, link: os.Link, move: moveNoReplace}, nil
+}
+
+// leftoverAge: a temporary folder older than this is a leftover from a job
+// that was killed (Task Manager, power cut); no real job takes that long.
+const leftoverAge = 24 * time.Hour
+
+// leftover matches the names of our temporary folders: ".qc-1a2b3c4d.part".
+var leftover = regexp.MustCompile(`^\.qc-[0-9a-f]{8}\.part$`)
+
+// removeLeftovers deletes old temporary folders in parent (never the
+// current one, nor anything that isn't ours). Deleting is safe: inside
+// there are only results and hard links to originals, and removing a hard
+// link leaves the original untouched.
+func removeLeftovers(parent, current string) {
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		path := filepath.Join(parent, e.Name())
+		if !e.IsDir() || !leftover.MatchString(e.Name()) || path == current {
+			continue
+		}
+		if info, err := e.Info(); err == nil && time.Since(info.ModTime()) > leftoverAge {
+			os.RemoveAll(path)
+		}
+	}
 }
 
 // LinkInput makes the original file available inside the work folder as

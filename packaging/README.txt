@@ -40,8 +40,11 @@ Select the files, right-click > Show more options > Send to >
 Files are put in file-name order (IMG_9 before IMG_10). To choose another
 order, rename the files, e.g. "1 cover.pdf", "2 report.pdf".
 
-You can select many files at once. At most 2 big video or PDF jobs run at
-the same time; the rest wait their turn.
+You can select many files at once. At most 2 big video or PDF jobs (and 4
+small jobs) run at the same time; the rest wait their turn.
+
+Nothing runs in the background: QuickConvert starts when you click an
+entry and closes when the file is done.
 
 
 WHAT EACH OPTION DOES
@@ -123,6 +126,15 @@ appear. If it does: right-click %LOCALAPPDATA%\QuickConvert\quickconvert.exe
 
 The notification gives the reason. Details are written to:
   %LOCALAPPDATA%\QuickConvert\log.txt
+
+
+TEST ON THIS COMPUTER
+--------------------
+Double-click selftest.cmd (in this folder). It installs QuickConvert, makes
+its own sample files in a temporary folder, tries every kind of conversion,
+checks that nothing is left running, and saves selftest-report.txt here.
+Many notifications pop up while it runs; that is normal. Your own files are
+not used.
 
 
 UNINSTALL

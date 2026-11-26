@@ -101,7 +101,7 @@ func runThroughApp(t *testing.T, id, input string, h app.Handler) (code int, las
 	var bodies []string
 	code = app.Run(context.Background(), id, input, app.Deps{
 		Notify:     func(title, body string) { bodies = append(bodies, body) },
-		Acquire:    func() func() { return func() {} },
+		Acquire:    func(actions.Kind) func() { return func() {} },
 		Log:        &bytes.Buffer{},
 		Eng:        engines.Default(),
 		Handlers:   func(actions.Action, string) app.Handler { return h },
@@ -188,7 +188,7 @@ func mergeThroughApp(t *testing.T, files ...string) (int, [2]string) {
 	var last [2]string
 	code := app.RunMany(context.Background(), "merge", files, app.Deps{
 		Notify:     func(title, body string) { last = [2]string{title, body} },
-		Acquire:    func() func() { return func() {} },
+		Acquire:    func(actions.Kind) func() { return func() {} },
 		Log:        &bytes.Buffer{},
 		Eng:        engines.Default(),
 		Handlers:   func(actions.Action, string) app.Handler { return Merge },

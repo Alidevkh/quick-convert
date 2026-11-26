@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -51,7 +52,7 @@ func setup(t *testing.T, name string, h Handler) (string, *recorder, *bytes.Buff
 	log := &bytes.Buffer{}
 	d := Deps{
 		Notify:     rec.notify,
-		Acquire:    func() func() { return func() {} },
+		Acquire:    func(actions.Kind) func() { return func() {} },
 		Log:        log,
 		Handlers:   func(actions.Action, string) Handler { return h },
 		StartDelay: time.Hour,
@@ -187,25 +188,32 @@ func TestStartNotificationOnlyWhenSlow(t *testing.T) {
 	}
 }
 
-func TestHeavyAcquires(t *testing.T) {
-	acquired, released := 0, 0
-	acquire := func() func() {
-		acquired++
+// Every job waits for a slot of its kind (2 heavy, 4 light at once), so
+// selecting 30 files doesn't start 30 conversions together. A job that
+// first asks the user a question doesn't take a slot while waiting.
+func TestJobsAcquireSlotByKind(t *testing.T) {
+	var got []actions.Kind
+	released := 0
+	acquire := func(k actions.Kind) func() {
+		got = append(got, k)
 		return func() { released++ }
 	}
 	input, _, _, d := setup(t, "x.mov", commitCopy)
 	d.Acquire = acquire
 	Run(context.Background(), "mp4", input, d)
-	if acquired != 1 || released != 1 {
-		t.Errorf("heavy: acquired %d released %d", acquired, released)
-	}
-
-	acquired, released = 0, 0
 	input2, _, _, d2 := setup(t, "x.txt", commitCopy)
 	d2.Acquire = acquire
 	Run(context.Background(), "code-py", input2, d2)
-	if acquired != 0 {
-		t.Errorf("light job acquired %d", acquired)
+	if !reflect.DeepEqual(got, []actions.Kind{actions.Heavy, actions.Light}) || released != 2 {
+		t.Errorf("acquired %v, released %d", got, released)
+	}
+
+	got = nil
+	input3, _, _, d3 := setup(t, "x.pdf", commitCopy)
+	d3.Acquire = acquire
+	Run(context.Background(), "extract", input3, d3)
+	if len(got) != 0 {
+		t.Errorf("an action that asks first took a slot: %v", got)
 	}
 }
 

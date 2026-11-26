@@ -172,6 +172,11 @@ reg delete "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.shrink" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.split" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.extract" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert.clean" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert.shrink" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert.split" /f >nul 2>&1
+reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert.extract" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert.clean" /f >nul 2>&1
 reg delete "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert.shrink" /f >nul 2>&1
@@ -748,6 +753,24 @@ reg add "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert\sh
 reg add "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.clean" /v MUIVerb /d "Remove metadata" /f >nul
 reg add "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.clean" /v MultiSelectModel /d "Player" /f >nul
 reg add "HKCU\Software\Classes\SystemFileAssociations\.mp4\shell\QuickConvert.clean\command" /ve /d "\"%DEST%\quickconvert.exe\" clean \"%%1\"" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert" /v MUIVerb /d "Convert to" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert" /v SubCommands /d "" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert" /v MultiSelectModel /d "Player" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\01mp4" /v MUIVerb /d "MP4 (full quality, for editing)" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\01mp4" /v MultiSelectModel /d "Player" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\01mp4\command" /ve /d "\"%DEST%\quickconvert.exe\" mp4 \"%%1\"" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\02whatsapp" /v MUIVerb /d "MP4 (WhatsApp / any device)" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\02whatsapp" /v MultiSelectModel /d "Player" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\02whatsapp\command" /ve /d "\"%DEST%\quickconvert.exe\" whatsapp \"%%1\"" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\03mp3" /v MUIVerb /d "MP3 (audio only)" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\03mp3" /v MultiSelectModel /d "Player" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\03mp3\command" /ve /d "\"%DEST%\quickconvert.exe\" mp3 \"%%1\"" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\04m4a" /v MUIVerb /d "M4A (audio only)" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\04m4a" /v MultiSelectModel /d "Player" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\04m4a\command" /ve /d "\"%DEST%\quickconvert.exe\" m4a \"%%1\"" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\05gif" /v MUIVerb /d "GIF" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\05gif" /v MultiSelectModel /d "Player" /f >nul
+reg add "HKCU\Software\Classes\SystemFileAssociations\.mpeg\shell\QuickConvert\shell\05gif\command" /ve /d "\"%DEST%\quickconvert.exe\" gif \"%%1\"" /f >nul
 reg add "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert" /v MUIVerb /d "Convert to" /f >nul
 reg add "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert" /v SubCommands /d "" /f >nul
 reg add "HKCU\Software\Classes\SystemFileAssociations\.mpg\shell\QuickConvert" /v MultiSelectModel /d "Player" /f >nul

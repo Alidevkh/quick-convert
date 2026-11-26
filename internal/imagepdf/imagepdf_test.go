@@ -28,7 +28,7 @@ func sendTo(t *testing.T, files ...string) (string, int) {
 	var title string
 	code := app.RunMany(context.Background(), "imgpdf", files, app.Deps{
 		Notify:     func(tt, body string) { title = tt },
-		Acquire:    func() func() { return func() {} },
+		Acquire:    func(actions.Kind) func() { return func() {} },
 		Log:        &bytes.Buffer{},
 		Eng:        engines.Default(),
 		Handlers:   func(actions.Action, string) app.Handler { return Convert },
@@ -188,7 +188,7 @@ func TestImagesToPDFBadPhotoNamed(t *testing.T) {
 	var body string
 	app.RunMany(context.Background(), "imgpdf", []string{good, bad}, app.Deps{
 		Notify:     func(title, b string) { body = b },
-		Acquire:    func() func() { return func() {} },
+		Acquire:    func(actions.Kind) func() { return func() {} },
 		Log:        &bytes.Buffer{},
 		Eng:        engines.Default(),
 		Handlers:   func(actions.Action, string) app.Handler { return Convert },

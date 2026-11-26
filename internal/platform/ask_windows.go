@@ -3,6 +3,10 @@ package platform
 // The small "Which pages?" box (Windows).
 
 import (
+	"bytes"
+
+	"quickconvert/internal/procjob"
+
 	"context"
 	"os"
 	"os/exec"
@@ -27,10 +31,16 @@ func AskPages(pages int) (answer string, ok bool, err error) {
 	cmd.Env = append(os.Environ(), "QC_PROMPT="+AskPrompt(pages), "QC_TITLE=QuickConvert - Extract pages")
 	hide, flags := askProcessFlags()
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: hide, CreationFlags: flags}
-	out, err := cmd.Output()
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Start()
+	if err == nil {
+		procjob.Track(cmd) // the box closes if QuickConvert is killed
+		err = cmd.Wait()
+	}
 	if err != nil {
 		return "", false, err
 	}
-	answer = string(out)
+	answer = out.String()
 	return answer, answer != "", nil
 }
